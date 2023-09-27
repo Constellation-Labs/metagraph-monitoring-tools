@@ -141,12 +141,12 @@ const checkIfValidatorsStarted = async (event, layer) => {
   }
 }
 
-const saveLogs = async (ssmClient, logName, layer, ec2InstancesIds) => {
+const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
   printSeparatorWithMessage(`Saving logs ${layer} layer`)
   const directory = {
-    [LAYERS.L0]: 'cd /home/ubuntu/code/metagraph-l0',
-    [LAYERS.CURRENCY_L1]: 'cd /home/ubuntu/code/currency-l1',
-    [LAYERS.DATA_L1]: 'cd /home/ubuntu/code/data-l1'
+    [LAYERS.L0]: `cd ${event.base_metagraph_l0_directory}`,
+    [LAYERS.CURRENCY_L1]: `cd ${event.base_currency_l1_directory}`,
+    [LAYERS.DATA_L1]: `cd ${event.base_data_l1_directory}`
   }
 
   const commands = [

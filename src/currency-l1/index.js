@@ -13,7 +13,7 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
   const cl1Keys = await getKeys(ssmClient, event.ec2_instance_1_id, 'cl1')
 
   const commands = [
-    `cd /home/ubuntu/code/currency-l1`,
+    `cd ${event.base_currency_l1_directory}`,
 
     `export CL_KEYSTORE="${cl1Keys.keyStore}"`,
     `export CL_KEYALIAS="${cl1Keys.keyAlias}"`,
@@ -31,8 +31,8 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
     `export CL_L0_PEER_ID=${mL0NodeId}`,
 
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
-    `export CL_APP_ENV=testnet`,
-    `export CL_COLLATERAL=0`,
+    `export CL_APP_ENV=${event.cl_app_env}`,
+    `export CL_COLLATERAL=${event.cl_collateral}`,
 
     `nohup java -jar currency-l1.jar run-initial-validator --ip ${event.ec2_instance_1_ip} > node-l1.log 2>&1 &`
   ]
@@ -42,7 +42,7 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
 
 const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceIp, ec2InstancesIds) => {
   const commands = [
-    `cd /home/ubuntu/code/currency-l1`,
+    `cd ${event.base_currency_l1_directory}`,
 
     `export CL_PUBLIC_HTTP_PORT=${event.currency_l1_public_port}`,
     `export CL_P2P_HTTP_PORT=${event.currency_l1_p2p_port}`,
@@ -57,8 +57,8 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
     `export CL_L0_PEER_ID=${mL0NodeId}`,
 
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
-    `export CL_APP_ENV=testnet`,
-    `export CL_COLLATERAL=0`,
+    `export CL_APP_ENV=${event.cl_app_env}`,
+    `export CL_COLLATERAL=${event.cl_collateral}`,
 
     `nohup java -jar currency-l1.jar run-validator --ip ${instanceIp} > node-l1.log 2>&1 &`
   ]
@@ -67,7 +67,7 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
 }
 
 const restartCurrencyL1Nodes = async (ssmClient, event, metagraphL0NodeId, logName) => {
-  await saveLogs(ssmClient, logName, LAYERS.CURRENCY_L1, [
+  await saveLogs(ssmClient, event, logName, LAYERS.CURRENCY_L1, [
     event.ec2_instance_1_id,
     event.ec2_instance_2_id,
     event.ec2_instance_3_id

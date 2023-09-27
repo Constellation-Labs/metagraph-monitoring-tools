@@ -4,6 +4,12 @@
   "metagraph_name": "DOR",
   "region":"us-west-2",
 
+  "base_metagraph_l0_directory": "/home/ubuntu/code/metagraph-l0",
+  "base_currency_l1_directory": "/home/ubuntu/code/currency-l1",
+  "base_data_l1_directory": "/home/ubuntu/code/data-l1",
+  "cl_app_env": "testnet",
+  "cl_collateral": 0,
+
   "include_currency_l1_layer": true,
   "include_data_l1_layer": true,
   

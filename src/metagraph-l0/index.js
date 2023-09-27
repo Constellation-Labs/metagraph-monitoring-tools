@@ -14,7 +14,7 @@ const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
   const l0Keys = await getKeys(ssmClient, event.ec2_instance_1_id, LAYERS.L0)
 
   const commands = [
-    `cd /home/ubuntu/code/metagraph-l0`,
+    `cd ${event.base_metagraph_l0_directory}`,
     `export CL_KEYSTORE="${l0Keys.keyStore}"`,
     `export CL_KEYALIAS="${l0Keys.keyAlias}"`,
     `export CL_PASSWORD="${l0Keys.password}"`,
@@ -28,8 +28,8 @@ const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
     `export CL_GLOBAL_L0_PEER_ID=${event.network_global_l0_id}`,
 
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
-    `export CL_APP_ENV=testnet`,
-    `export CL_COLLATERAL=0`,
+    `export CL_APP_ENV=${event.cl_app_env}`,
+    `export CL_COLLATERAL=${event.cl_collateral}`,
 
     `nohup java -jar metagraph-l0.jar run-rollback --ip ${event.ec2_instance_1_ip} > node-l0.log 2>&1 &`
   ]
@@ -39,7 +39,7 @@ const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
 
 const startValidatorNodeL0 = async (ssmClient, event, keys, instanceIp, ec2InstancesIds) => {
   const commands = [
-    `cd /home/ubuntu/code/metagraph-l0`,
+    `cd ${event.base_metagraph_l0_directory}`,
     `export CL_PUBLIC_HTTP_PORT=${event.metagraph_l0_public_port}`,
     `export CL_P2P_HTTP_PORT=${event.metagraph_l0_p2p_port}`,
     `export CL_CLI_HTTP_PORT=${event.metagraph_l0_cli_port}`,
@@ -47,9 +47,8 @@ const startValidatorNodeL0 = async (ssmClient, event, keys, instanceIp, ec2Insta
     `export CL_GLOBAL_L0_PEER_HTTP_PORT=${event.network_global_l0_port}`,
     `export CL_GLOBAL_L0_PEER_ID=${event.network_global_l0_id}`,
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
-    `export CL_APP_ENV=testnet`,
-    `export CL_COLLATERAL=0`,
-    `export CL_COLLATERAL=0`,
+    `export CL_APP_ENV=${event.cl_app_env}`,
+    `export CL_COLLATERAL=${event.cl_collateral}`,
 
     `nohup java -jar metagraph-l0.jar run-validator --ip ${instanceIp} > node-l0.log 2>&1 &`
   ]
@@ -58,7 +57,7 @@ const startValidatorNodeL0 = async (ssmClient, event, keys, instanceIp, ec2Insta
 }
 
 const restartL0Nodes = async (ssmClient, event, logName) => {
-  await saveLogs(ssmClient, logName, LAYERS.L0, [
+  await saveLogs(ssmClient, event, logName, LAYERS.L0, [
     event.ec2_instance_1_id,
     event.ec2_instance_2_id,
     event.ec2_instance_3_id

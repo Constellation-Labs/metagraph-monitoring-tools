@@ -39,16 +39,16 @@ This project is designed to run as a lambda function and monitor EC2 instances. 
 
 -   3 EC2 instances with an authorized SSM agent and zip installed (use `sudo apt install zip` to install zip for compressing logs).
 
-Inside each instance, we should follow a specific directory structure. To run this lambda function, your instance should contain the following directories and files:
+Inside each instance, we should follow a specific directory structure. To run this lambda function, your instance should contain the following files:
 
--   `/home/ubuntu/code/metagraph-l0`
+-   `your_metagraph_l0_directory`
 
     -   `genesis.csv`
     -   `metagraph-l0.jar`
--   `/home/ubuntu/code/currency-l1`
+-   `your_currency_l1_directory`
 
     -   `currency-l1.jar`
--   `/home/ubuntu/code/data-l1`
+-   `your_data_l1_directory`
 
     -   `data-l1.jar`
 
