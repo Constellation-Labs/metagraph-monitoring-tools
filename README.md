@@ -1,63 +1,73 @@
 
+Network Monitoring Tools
+========================
 
-#   Network monitoring tools
+This project has been developed for monitoring metagraphs and initiating a restart if necessary.
 
+We have a lambda function dedicated to monitoring a metagraph and restarting it if the snapshot production stops. It can be enhanced to handle other scenarios requiring a restart.
 
-This project was made to monitor some metagraphs and do a restart if needed.
+To run the lambda function, you should provide the parameters described in `event.json`. Some parameters are mandatory and need to be populated as SSM Parameters in the Parameter Store.
 
-We have one lambda function used to monitor a metagraph and restart if we stop
-producing snapshots. It could be improved in other cases where a restart is needed.
+Please remember to create a new role for the lambda function, which should include the following policies: AmazonEventBridgeFullAccess, AWSLambda_FullAccess, AWSLambdaBasicExecutionRole. Additionally, we need to create a custom policy with the following permissions:
 
-To run the lambda function you should provide the parameters described in: event.json.
-
-Some parameters are required and should be populated as SSM Parameters (on Parameters Store).
-We have one script in `scripts/create-ssm-params.sh` that shows how to create the needed parameters.
-
-Remember to create a new ROLE for the lambda function. This role should contain the following policies:
-AmazonEventBridgeFullAccess, AWSLambda_FullAccess, AWSLambdaBasicExecutionRole, and we need to create a custom policy with the following permissions:
-
-``` 
+```
 {
-
-"Version":  "2012-10-17",
-
-"Statement": [
-
-{
-
-"Sid":  "VisualEditor0",
-
-"Effect":  "Allow",
-
-"Action": [
-
-"ssm:SendCommand",
-
-"ssm:CreateAssociation",
-
-"ssm:GetParameter"
-
-],
-
-"Resource":  "*"
-
-}
-
-]
-
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VisualEditor0",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:SendCommand",
+        "ssm:CreateAssociation",
+        "ssm:GetParameter"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
-  
-We also access the instances using SSM, so be sure that your instances have the SSM client setup.
+We also access instances using SSM, so ensure that your instances have the SSM client set up.
 
-To deploy the function, just pack the changed `zip -r my_deployment_package.zip .` and then deploy the ZIP to your function.
+To deploy the function, simply package the changes using `zip -r my_deployment_package.zip .` and then deploy the ZIP file to your function.
 
-This lambda assumes that you're using a proper directory architecture and names. To run this lambda your instance should contain the following directories:
-* code/metagraph-l0
-  * genesis.csv
-  * metagraph-l0.jar
-* code/currency-l1
-  * currency-l1.jar
-* code/data-l1
-  * data-l1.jar
+Dependencies
+------------
+
+This project is designed to run as a lambda function and monitor EC2 instances. Therefore, we require the following:
+
+-   3 EC2 instances with an authorized SSM agent and zip installed (use `sudo apt install zip` to install zip for compressing logs).
+
+Inside each instance, we should follow a specific directory structure. To run this lambda function, your instance should contain the following directories and files:
+
+-   `/home/ubuntu/code/metagraph-l0`
+
+    -   `genesis.csv`
+    -   `metagraph-l0.jar`
+-   `/home/ubuntu/code/currency-l1`
+
+    -   `currency-l1.jar`
+-   `/home/ubuntu/code/data-l1`
+
+    -   `data-l1.jar`
+
+We need to create variables in the SSM Parameter Store, following this pattern:
+
+```
+/metagraph-nodes/:ec2_instance_id/l0/keystore
+/metagraph-nodes/:ec2_instance_id/l0/keyalias
+/metagraph-nodes/:ec2_instance_id/l0/password
+
+/metagraph-nodes/:ec2_instance_id/cl1/keystore
+/metagraph-nodes/:ec2_instance_id/cl1/keyalias
+/metagraph-nodes/:ec2_instance_id/cl1/password
+
+/metagraph-nodes/:ec2_instance_id/dl1/keystore
+/metagraph-nodes/:ec2_instance_id/dl1/keyalias
+/metagraph-nodes/:ec2_instance_id/dl1/password
+```
+
+You should repeat the above parameters for your 3 instances. Additionally, there is a parameter in the SSM Parameter Store for Opsgenie integration, so you need to create the following parameter:
+
+`/metagraph-nodes/opsgenie-api-key`
