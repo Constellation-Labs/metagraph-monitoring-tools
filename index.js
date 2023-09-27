@@ -61,7 +61,7 @@ export const handler = async (event) => {
 
   const ssmClient = new SSMClient({ region });
   console.log("\n\n############### STARTING THE RESTART ###################\n\n")
-  
+
   printSeparator()
   console.log('Killing current processes on nodes')
   await killCurrentProcesses(ssmClient, event, [
@@ -76,13 +76,17 @@ export const handler = async (event) => {
   const nodeId = await restartL0Nodes(ssmClient, event)
   console.log("################ FINISHED METAGRAPH L0 ##################\n\n\n\n")
 
-  console.log("################ CURRENCY L1 ##################")
-  await restartCurrencyL1Nodes(ssmClient, event, nodeId)
-  console.log("################ FINISHED CURRENCY L1 ################## \n\n\n\n")
+  if (event.include_currency_l1_layer) {
+    console.log("################ CURRENCY L1 ##################")
+    await restartCurrencyL1Nodes(ssmClient, event, nodeId)
+    console.log("################ FINISHED CURRENCY L1 ################## \n\n\n\n")
+  }
 
-  console.log("################ DATA L1 ##################")
-  await restartDataL1Nodes(ssmClient, event, nodeId)
-  console.log("################ FINISHED DATA L1 ################## \n\n\n\n")
+  if (event.include_data_l1_layer) {
+    console.log("################ DATA L1 ##################")
+    await restartDataL1Nodes(ssmClient, event, nodeId)
+    console.log("################ FINISHED DATA L1 ################## \n\n\n\n")
+  }
 
   const response = {
     statusCode: 200,

@@ -51,4 +51,13 @@ AmazonEventBridgeFullAccess, AWSLambda_FullAccess, AWSLambdaBasicExecutionRole, 
   
 We also access the instances using SSM, so be sure that your instances have the SSM client setup.
 
-To deploy the function, just pack the changed `zip -r my_deployment_package.zip .` and then deploy the ZIP to your function
+To deploy the function, just pack the changed `zip -r my_deployment_package.zip .` and then deploy the ZIP to your function.
+
+This lambda assumes that you're using a proper directory architecture and names. To run this lambda your instance should contain the following directories:
+* code/metagraph-l0
+  * genesis.csv
+  * metagraph-l0.jar
+* code/currency-l1
+  * currency-l1.jar
+* code/data-l1
+  * data-l1.jar
