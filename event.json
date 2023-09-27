@@ -1,31 +1,35 @@
 {
-  "network": "",
-  "metagraph_id": "",
-  "region":"",
+  "network": "testnet",
+  "metagraph_id": "DAG6triCpkqMQT67xniyukEg9CYhWRsUNezMy2BE",
+  "metagraph_name": "DOR",
+  "region":"us-west-2",
+
+  "include_currency_l1_layer": true,
+  "include_data_l1_layer": true,
   
-  "metagraph_l0_public_port": "",
-  "metagraph_l0_p2p_port": "",
-  "metagraph_l0_cli_port": "",
+  "metagraph_l0_public_port": 7000,
+  "metagraph_l0_p2p_port": 7001,
+  "metagraph_l0_cli_port": 7002,
 
-  "currency_l1_public_port": "",
-  "currency_l1_p2p_port": "",
-  "currency_l1_cli_port": "",
+  "currency_l1_public_port": 8000,
+  "currency_l1_p2p_port": 8001,
+  "currency_l1_cli_port": 8002,
 
-  "data_l1_public_port": "",
-  "data_l1_p2p_port": "",
-  "data_l1_cli_port": "",
+  "data_l1_public_port": 9000,
+  "data_l1_p2p_port": 9001,
+  "data_l1_cli_port": 9002,
 
-  "ec2_instance_1_id": "",
-  "ec2_instance_1_ip": "",
+  "ec2_instance_1_id": "i-03f1a976ec6843de1",
+  "ec2_instance_1_ip": "34.212.38.215",
 
-  "ec2_instance_2_id": "",
-  "ec2_instance_2_ip": "",
+  "ec2_instance_2_id": "i-08ad464855b91963a",
+  "ec2_instance_2_ip": "34.219.97.95",
 
-  "ec2_instance_3_id": "",
-  "ec2_instance_3_ip": "",
+  "ec2_instance_3_id": "i-056d3ced123b2b3ee",
+  "ec2_instance_3_ip": "35.90.118.112",
 
-  "network_global_l0_ip": "",
-  "network_global_l0_port": "",
-  "network_global_l0_id": ""
+  "network_global_l0_ip": "13.57.186.140",
+  "network_global_l0_port": 9000,
+  "network_global_l0_id": "e2f4496e5872682d7a55aa06e507a58e96b5d48a5286bfdff7ed780fa464d9e789b2760ecd840f4cb3ee6e1c1d81b2ee844c88dbebf149b1084b7313eb680714"
 
 }
