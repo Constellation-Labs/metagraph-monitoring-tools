@@ -46,6 +46,7 @@ const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
     Instance 3 ID: ${event.ec2_instance_3_id}
     Instance 3 IP: ${event.ec2_instance_3_ip}
     `,
+    alias: `${event.metagraphId}_successfully_restarted`,
     actions: ["Metagraph", "Restart"],
     tags: ["Metagraph", "Restart", "Successfully"],
     details: {
@@ -98,6 +99,7 @@ const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
     Instance 3 IP: ${event.ec2_instance_3_ip}
     `,
     actions: ["Metagraph", "Restart"],
+    alias: `${event.metagraphId}_failure_restarted`,
     tags: ["Metagraph", "Restart", "Failure"],
     details: {
       metagraphId: event.metagraph_id,
