@@ -55,7 +55,7 @@ const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
       metagraphName: event.metagraph_name
     },
     entity: "Metagraph",
-    priority: "P4"
+    priority: "P3"
   }
 }
 
@@ -107,7 +107,7 @@ const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
       metagraphName: event.metagraph_name
     },
     entity: "Metagraph",
-    priority: "P3"
+    priority: "P1"
   }
 }
 
