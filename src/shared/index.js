@@ -12,7 +12,7 @@ const getDiffBetweenLastMetagraphSnapshotAndNow = async (network, metagraph_id) 
   try {
     const response = await axios.get(beUrl)
     const lastSnapshotTimestamp = response.data.data.timestamp
-    console.log(`LAST SNAPSHOT OF METAGRAPH ${metagraph_id}: ${lastSnapshotTimestamp}`)
+    console.log(`LAST SNAPSHOT OF THE METAGRAPH ${metagraph_id}: ${lastSnapshotTimestamp}`)
 
     return moment.utc().diff(lastSnapshotTimestamp, 'minutes')
   } catch (e) {
