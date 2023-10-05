@@ -1,0 +1,44 @@
+name: Deploy
+
+inputs:
+  AWS_ACCESS_KEY_ID:
+    required: true
+  AWS_SECRET_ACCESS_KEY:
+    required: true
+  AWS_REGION:
+    required: true
+  AWS_LAMBDA_FUNCTION_NAME:
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v3
+    - name: Install AWS Cli
+      uses: unfor19/install-aws-cli-action@v1
+      with:
+        arch: amd64
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 16
+
+    - name: Install jq
+      shell: bash
+      run: |
+        npm run package
+
+    - name: Upload lambda code
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ inputs.AWS_REGION }}
+      shell: bash
+      run: |
+        aws lambda update-function-code \
+        --function-name ${{ inputs.AWS_LAMBDA_FUNCTION_NAME }} \
+        --zip-file fileb://my_deployment_package.zip \
+        --publish
+        
+        # Wait for the Lambda function update to finish
+        aws lambda wait function-updated \
+        --function-name ${{ inputs.AWS_LAMBDA_FUNCTION_NAME }} 

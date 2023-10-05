@@ -1,0 +1,19 @@
+name: Deploy Testnet/Integrationnet AWS
+
+on:
+  push:
+    branches:
+      - "deploy/testnet-integrationnet-aws"
+jobs:
+  deploy-testnet-integrationnet-aws:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy Testnet/Integrationnet AWS
+        uses: "./.github/templates/deploy"
+        with:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_TESTNET_INTEGRATIONNET }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_TESTNET_INTEGRATIONNET }}
+          AWS_REGION: ${{ secrets.AWS_REGION_TESTNET_INTEGRATIONNET }}
+          AWS_LAMBDA_FUNCTION_NAME: MetagraphMonitor
