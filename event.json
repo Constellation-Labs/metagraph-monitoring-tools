@@ -10,6 +10,10 @@
   "cl_app_env": ":network_name",
   "cl_collateral": 0,
 
+  "additional_metagraph_l0_env_variables": [],
+  "additional_currency_l1_env_variables": [],
+  "additional_data_l1_env_variables": [],
+
   "include_currency_l1_layer": true,
   "include_data_l1_layer": true,
   

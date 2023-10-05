@@ -12,9 +12,7 @@ import { LAYERS } from '../utils/types.js'
 const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2InstancesIds) => {
   const cl1Keys = await getKeys(ssmClient, event.ec2_instance_1_id, 'cl1')
 
-  const commands = [
-    `cd ${event.base_currency_l1_directory}`,
-
+  const envVariables = [
     `export CL_KEYSTORE="${cl1Keys.keyStore}"`,
     `export CL_KEYALIAS="${cl1Keys.keyAlias}"`,
     `export CL_PASSWORD="${cl1Keys.password}"`,
@@ -32,8 +30,16 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
 
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
     `export CL_APP_ENV=${event.cl_app_env}`,
-    `export CL_COLLATERAL=${event.cl_collateral}`,
+    `export CL_COLLATERAL=${event.cl_collateral}`
+  ]
 
+  for (const variable of event.additional_currency_l1_env_variables) {
+    envVariables.push(`export ${variable}`)
+  }
+
+  const commands = [
+    ...envVariables,
+    `cd ${event.base_currency_l1_directory}`,
     `nohup java -jar currency-l1.jar run-initial-validator --ip ${event.ec2_instance_1_ip} > node-l1.log 2>&1 &`
   ]
 
@@ -41,9 +47,7 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
 }
 
 const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceIp, ec2InstancesIds) => {
-  const commands = [
-    `cd ${event.base_currency_l1_directory}`,
-
+  const envVariables = [
     `export CL_PUBLIC_HTTP_PORT=${event.currency_l1_public_port}`,
     `export CL_P2P_HTTP_PORT=${event.currency_l1_p2p_port}`,
     `export CL_CLI_HTTP_PORT=${event.currency_l1_cli_port}`,
@@ -59,7 +63,15 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
     `export CL_APP_ENV=${event.cl_app_env}`,
     `export CL_COLLATERAL=${event.cl_collateral}`,
+  ]
 
+  for (const variable of event.additional_currency_l1_env_variables) {
+    envVariables.push(`export ${variable}`)
+  }
+
+  const commands = [
+    ...envVariables,
+    `cd ${event.base_currency_l1_directory}`,
     `nohup java -jar currency-l1.jar run-validator --ip ${instanceIp} > node-l1.log 2>&1 &`
   ]
 
