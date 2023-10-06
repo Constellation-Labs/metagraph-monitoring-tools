@@ -38,7 +38,7 @@ runs:
         --function-name ${{ inputs.AWS_LAMBDA_FUNCTION_NAME }} \
         --zip-file fileb://my_deployment_package.zip \
         --publish
-
+        
         # Wait for the Lambda function update to finish
         aws lambda wait function-updated \
-        --function-name ${{ inputs.AWS_LAMBDA_FUNCTION_NAME }}
+        --function-name ${{ inputs.AWS_LAMBDA_FUNCTION_NAME }} 
