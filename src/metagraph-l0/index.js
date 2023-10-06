@@ -13,8 +13,7 @@ import { LAYERS } from '../utils/types.js'
 const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
   const l0Keys = await getKeys(ssmClient, event.ec2_instance_1_id, LAYERS.L0)
 
-  const commands = [
-    `cd ${event.base_metagraph_l0_directory}`,
+  const envVariables = [
     `export CL_KEYSTORE="${l0Keys.keyStore}"`,
     `export CL_KEYALIAS="${l0Keys.keyAlias}"`,
     `export CL_PASSWORD="${l0Keys.password}"`,
@@ -30,7 +29,15 @@ const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
     `export CL_APP_ENV=${event.cl_app_env}`,
     `export CL_COLLATERAL=${event.cl_collateral}`,
+  ]
 
+  for (const variable of event.additional_metagraph_l0_env_variables) {
+    envVariables.push(`export ${variable}`)
+  }
+
+  const commands = [
+    ...envVariables,
+    `cd ${event.base_metagraph_l0_directory}`,
     `nohup java -jar metagraph-l0.jar run-rollback --ip ${event.ec2_instance_1_ip} > node-l0.log 2>&1 &`
   ]
 
@@ -38,8 +45,7 @@ const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
 }
 
 const startValidatorNodeL0 = async (ssmClient, event, keys, instanceIp, ec2InstancesIds) => {
-  const commands = [
-    `cd ${event.base_metagraph_l0_directory}`,
+  const envVariables = [
     `export CL_PUBLIC_HTTP_PORT=${event.metagraph_l0_public_port}`,
     `export CL_P2P_HTTP_PORT=${event.metagraph_l0_p2p_port}`,
     `export CL_CLI_HTTP_PORT=${event.metagraph_l0_cli_port}`,
@@ -49,7 +55,15 @@ const startValidatorNodeL0 = async (ssmClient, event, keys, instanceIp, ec2Insta
     `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
     `export CL_APP_ENV=${event.cl_app_env}`,
     `export CL_COLLATERAL=${event.cl_collateral}`,
+  ]
 
+  for (const variable of event.additional_metagraph_l0_env_variables) {
+    envVariables.push(`export ${variable}`)
+  }
+
+  const commands = [
+    ...envVariables,
+    `cd ${event.base_metagraph_l0_directory}`,
     `nohup java -jar metagraph-l0.jar run-validator --ip ${instanceIp} > node-l0.log 2>&1 &`
   ]
 
@@ -106,7 +120,7 @@ const restartL0Nodes = async (ssmClient, event, logName) => {
   printSeparatorWithMessage(`Joining validators L0 to the cluster. GenesisNodeId: ${nodeId}`)
   await joinNodeToCluster(ssmClient, event, LAYERS.L0, nodeId, [event.ec2_instance_2_id])
   await joinNodeToCluster(ssmClient, event, LAYERS.L0, nodeId, [event.ec2_instance_3_id])
-  printSeparatorWithMessage('Finished')  
+  printSeparatorWithMessage('Finished')
 
   return nodeId
 }
