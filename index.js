@@ -100,14 +100,17 @@ export const handler = async (event) => {
       throw Error("All 3 ec2 instances IDs are required")
     }
 
-    const diffBetweenLastMetagraphSnapshotAndNow = await getDiffBetweenLastMetagraphSnapshotAndNow(network, metagraph_id)
-    if (diffBetweenLastMetagraphSnapshotAndNow < 4) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify('Metagraph producing snapshots correctly, skipping.'),
-      };
+    if (!event.force_restart) {
+      const diffBetweenLastMetagraphSnapshotAndNow = await getDiffBetweenLastMetagraphSnapshotAndNow(network, metagraph_id)
+      if (diffBetweenLastMetagraphSnapshotAndNow < 4) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify('Metagraph producing snapshots correctly, skipping.'),
+        };
+      }
+    } else {
+      console.log("Force restart provided, restarting ...")
     }
-
     printSeparatorWithMessage('STARTING THE RESTART')
 
     const logsNames = getLogsNames();
