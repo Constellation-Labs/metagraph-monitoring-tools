@@ -14,12 +14,14 @@ const getLastMetagraphInfo = async (event) => {
     const response = await axios.get(beUrl)
     const lastSnapshotTimestamp = response.data.data.timestamp
     const lastSnapshotOrdinal = response.data.data.ordinal
+    const lastSnapshotHash = response.data.data.hash
 
-    console.log(`LAST SNAPSHOT OF METAGRAPH ${metagraph.id}: ${lastSnapshotTimestamp}. Ordinal: ${lastSnapshotOrdinal}`)
+    console.log(`LAST SNAPSHOT OF METAGRAPH ${metagraph.id}: ${lastSnapshotTimestamp}. Ordinal: ${lastSnapshotOrdinal}. Hash: ${lastSnapshotHash}`)
 
     return {
       lastSnapshotTimestamp,
-      lastSnapshotOrdinal
+      lastSnapshotOrdinal,
+      lastSnapshotHash
     }
   } catch (e) {
     console.log(e)
@@ -77,22 +79,39 @@ const killCurrentProcesses = async (ssmClient, event, ec2InstancesIds) => {
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
-const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, lastSnapshotOrdinal, ec2InstancesIds) => {
+const getRemoveInstructionByOrdinal = async (event, ordinal) => {
+  const beUrl = `https://be-${event.network.name}.constellationnetwork.io/currency/${event.metagraph.id}/snapshots/${ordinal}`
+  try {
+    const response = await axios.get(beUrl)
+    const lastSnapshotOrdinal = response.data.data.ordinal
+    const lastSnapshotHash = response.data.data.hash
+
+    return [`rm data/incremental_snapshot/${lastSnapshotOrdinal}`, `rm data/incremental_snapshot/${lastSnapshotHash}`]
+  } catch (e) {
+    return [`rm data/incremental_snapshot/${ordinal}`]
+  }
+}
+
+const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => {
   const { file_system } = event.metagraph
+  const { lastSnapshotOrdinal } = await getLastMetagraphInfo(event)
   const initialSnapshotToRemove = lastSnapshotOrdinal
-  const finalSnapshotToRemove = initialSnapshotToRemove + 100
+  const finalSnapshotToRemove = initialSnapshotToRemove + 50
 
   console.log(`Removing snapshots on data folder between: ${initialSnapshotToRemove} - ${finalSnapshotToRemove}`)
-
+  
   //Somehow the syntax rm data/incremental_snapshot/{x..y} doesn't work, so we put individually
-  const removeMessages = []
+  const promises = []
   for (let idx = initialSnapshotToRemove; idx <= finalSnapshotToRemove; idx++) {
-    removeMessages.push(`rm data/incremental_snapshot/${idx}`)
+    promises.push(getRemoveInstructionByOrdinal(event, idx))
   }
+
+  const deletingCommands = await Promise.all(promises)
+  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc,...curr], []);
 
   const commands = [
     `cd ${file_system.base_metagraph_l0_directory}`,
-    ...removeMessages
+    ...allDeletingCommands
   ]
 
   await sendCommand(ssmClient, commands, ec2InstancesIds)
@@ -254,7 +273,7 @@ const getUnhealthyClusters = async (event) => {
   if (event.metagraph.include_currency_l1_layer) {
     urls.push(`http://${event.aws.ec2.instances.genesis.ip}:${ports.currency_l1_public_port}/cluster/info`)
   }
-  
+
   if (event.metagraph.include_data_l1_layer) {
     urls.push(`http://${event.aws.ec2.instances.genesis.ip}:${ports.data_l1_public_port}/cluster/info`)
   }

@@ -97,7 +97,6 @@ const restartL0Nodes = async (ssmClient, event, logName) => {
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage('Starting validators L0 nodes')
-  console.log(JSON.stringify(event.aws.ec2.instances.validators))
   for (const validator of event.aws.ec2.instances.validators) {
     console.log(`Starting validator ${validator.ip}`)
     const validator1Keys = await getKeys(ssmClient, validator.id, LAYERS.L0)

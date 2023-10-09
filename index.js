@@ -30,7 +30,7 @@ const getLogsNames = () => {
   }
 }
 
-const restartNodes = async (ssmClient, event, lastSnapshotOrdinal, { l0LogName, cl1LogName, dl1LogName }) => {
+const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }) => {
   const allEC2NodesIntances = getAllEC2NodesInstances(event)
 
   printSeparatorWithMessage('Killing current processes on nodes')
@@ -38,7 +38,7 @@ const restartNodes = async (ssmClient, event, lastSnapshotOrdinal, { l0LogName, 
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage('Deleting snapshots not sent to GL0 on Metagraph')
-  await deleteSnapshotNotSyncToGL0(ssmClient, event, lastSnapshotOrdinal, allEC2NodesIntances)
+  await deleteSnapshotNotSyncToGL0(ssmClient, event, allEC2NodesIntances)
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage('METAGRAPH L0')
@@ -128,7 +128,7 @@ export const handler = async (event) => {
 
   let shouldRestart = null
   try {
-    const { lastSnapshotOrdinal, lastSnapshotTimestamp } = await getLastMetagraphInfo(event)
+    const { lastSnapshotTimestamp } = await getLastMetagraphInfo(event)
 
     shouldRestart = await shouldRestartMetagraph(event, lastSnapshotTimestamp)
     if (!shouldRestart.should_restart) {
@@ -142,7 +142,7 @@ export const handler = async (event) => {
 
     const logsNames = getLogsNames();
 
-    await restartNodes(ssmClient, event, lastSnapshotOrdinal, logsNames)
+    await restartNodes(ssmClient, event, logsNames)
 
     await validateIfAllNodesAreReady(event)
 

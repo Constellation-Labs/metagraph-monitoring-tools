@@ -5,8 +5,8 @@ const OPSGENIE_ALERT_URL = "https://api.opsgenie.com/v2/alerts"
 
 const buildValidatorsLogsURLs = (validators, prefix, port) => {
   const messages = []
-  for (const [idx, validator] of validators) {
-    messages.push(`${prefix} - ${idx + 1}: http://${validator.ip}:${port}/node/info`)
+  for (const validator of validators) {
+    messages.push(`${prefix} - ${validator.ip}: http://${validator.ip}:${port}/node/info`)
   }
 
   return messages.join('\n')
@@ -14,9 +14,9 @@ const buildValidatorsLogsURLs = (validators, prefix, port) => {
 
 const buildValidatorsLogsInstances = (validators) => {
   const messages = []
-  for (const [idx, validator] of validators) {
-    messages.push(`Instance ${idx + 1} (Validator) ID: ${validator.id}`)
-    messages.push(`Instance ${idx + 1} (Validator) IP: ${validator.ip}`)
+  for (const validator of validators) {
+    messages.push(`Instance ${validator.ip} (Validator) ID: ${validator.id}`)
+    messages.push(`Instance ${validator.ip} (Validator) IP: ${validator.ip}`)
   }
 
   return messages.join('\n')
