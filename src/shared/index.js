@@ -1,4 +1,3 @@
-import moment from 'moment';
 import axios from 'axios';
 import { SendCommandCommand, GetParameterCommand } from '@aws-sdk/client-ssm'
 import { LAYERS } from '../utils/types.js'
