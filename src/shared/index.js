@@ -98,7 +98,7 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
   const finalSnapshotToRemove = initialSnapshotToRemove + 50
 
   console.log(`Removing snapshots on data folder between: ${initialSnapshotToRemove} - ${finalSnapshotToRemove}`)
-  
+
   //Somehow the syntax rm data/incremental_snapshot/{x..y} doesn't work, so we put individually
   const promises = []
   for (let idx = initialSnapshotToRemove; idx <= finalSnapshotToRemove; idx++) {
@@ -106,7 +106,7 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
   }
 
   const deletingCommands = await Promise.all(promises)
-  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc,...curr], []);
+  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc, ...curr], []);
 
   const commands = [
     `cd ${file_system.base_metagraph_l0_directory}`,
@@ -203,8 +203,8 @@ const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
 
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 
-  console.log('Waiting 30s to finish the compression...')
-  await sleep(30000)
+  console.log('Waiting 10s to finish the compression...')
+  await sleep(10000)
   printSeparatorWithMessage('Finished')
 }
 
@@ -282,7 +282,7 @@ const getUnhealthyClusters = async (event) => {
     try {
       const response = await axios.get(url)
       const clusterInfo = response.data
-      if (clusterInfo.length < 3) {
+      if (!url.includes(ports.metagraph_l0_public_port) && clusterInfo.length < 3) {
         console.log(`Less than 3: ${url}`)
         unhealthyClusters.push(url)
         continue
