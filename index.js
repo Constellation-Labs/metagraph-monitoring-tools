@@ -1,6 +1,15 @@
 import { SSMClient } from '@aws-sdk/client-ssm'
 import moment from 'moment'
-import { getDiffBetweenLastMetagraphSnapshotAndNow, killCurrentProcesses, printSeparatorWithMessage, checkIfAllNodesAreReady, sleep } from './src/shared/index.js'
+import {
+  getLastMetagraphInfo,
+  killCurrentProcesses,
+  printSeparatorWithMessage,
+  checkIfAllNodesAreReady,
+  sleep,
+  getAllEC2NodesInstances,
+  deleteSnapshotNotSyncToGL0,
+  getUnhealthyClusters
+} from './src/shared/index.js'
 import { restartL0Nodes } from './src/metagraph-l0/index.js'
 import { restartCurrencyL1Nodes } from './src/currency-l1/index.js'
 import { restartDataL1Nodes } from './src/data-l1/index.js'
@@ -21,30 +30,30 @@ const getLogsNames = () => {
   }
 }
 
-const restartNodes = async (ssmClient, event, logsNames) => {
+const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }) => {
+  const allEC2NodesIntances = getAllEC2NodesInstances(event)
+
   printSeparatorWithMessage('Killing current processes on nodes')
-  console.log('Killing current processes on nodes')
-  await killCurrentProcesses(ssmClient, event, [
-    event.ec2_instance_1_id,
-    event.ec2_instance_2_id,
-    event.ec2_instance_3_id
-  ])
+  await killCurrentProcesses(ssmClient, event, allEC2NodesIntances)
+  printSeparatorWithMessage('Finished')
+
+  printSeparatorWithMessage('Deleting snapshots not sent to GL0 on Metagraph')
+  await deleteSnapshotNotSyncToGL0(ssmClient, event, allEC2NodesIntances)
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage('METAGRAPH L0')
-
-  const nodeId = await restartL0Nodes(ssmClient, event, logsNames.l0LogName)
+  const nodeId = await restartL0Nodes(ssmClient, event, l0LogName)
   printSeparatorWithMessage('Finished')
 
-  if (event.include_currency_l1_layer) {
+  if (event.metagraph.include_currency_l1_layer) {
     printSeparatorWithMessage('CURRENCY L1')
-    await restartCurrencyL1Nodes(ssmClient, event, nodeId, logsNames.cl1LogName)
+    await restartCurrencyL1Nodes(ssmClient, event, nodeId, cl1LogName)
     printSeparatorWithMessage('Finished')
   }
 
-  if (event.include_data_l1_layer) {
+  if (event.metagraph.include_data_l1_layer) {
     printSeparatorWithMessage('DATA L1')
-    await restartDataL1Nodes(ssmClient, event, nodeId, logsNames.dl1LogName)
+    await restartDataL1Nodes(ssmClient, event, nodeId, dl1LogName)
     printSeparatorWithMessage('Finished')
   }
 }
@@ -66,51 +75,69 @@ const validateIfAllNodesAreReady = async (event) => {
 
 const checkIfNewSnapshotsAreProducedAfterRestart = async (event) => {
   printSeparatorWithMessage("CHECKING IF NEW SNAPSHOTS WERE PRODUCED")
-  console.log("Waiting 60s ...")
-  await sleep(60000)
-  const diffBetweenLastMetagraphSnapshotAndNowAfterRestart = getDiffBetweenLastMetagraphSnapshotAndNow(event.network, event.metagraph_id)
+  console.log("Waiting 30s ...")
+  await sleep(30000)
+  const { lastSnapshotTimestamp } = await getLastMetagraphInfo(event)
 
-  if (diffBetweenLastMetagraphSnapshotAndNowAfterRestart > 4) {
+  const lastSnapshotTimestampDiff = moment.utc().diff(lastSnapshotTimestamp, 'minutes')
+  if (lastSnapshotTimestampDiff > 4) {
     throw Error("Snapshots keep not being produced even after restarting, take a look at the instances")
   }
 
   printSeparatorWithMessage("New snapshots were produced")
 }
 
+const shouldRestartMetagraph = async (event, lastSnapshotTimestamp) => {
+  if (event.force_metagraph_restart) {
+    console.log('Force metagraph restart provided, restarting')
+    return {
+      should_restart: true,
+      reason: RESTART_REASONS.FORCE_METAGRAPH_RESTART
+    }
+  }
+
+  const lastSnapshotTimestampDiff = moment.utc().diff(lastSnapshotTimestamp, 'minutes')
+  if (lastSnapshotTimestampDiff > 4) {
+    return {
+      should_restart: true,
+      reason: RESTART_REASONS.STOP_PRODUCING_SNAPSHOTS
+    };
+  }
+
+  const unhealthyClusters = await getUnhealthyClusters(event)
+  if (unhealthyClusters.length > 0) {
+    console.log(`Unhealthy clusters: ${unhealthyClusters}`)
+    return {
+      should_restart: true,
+      reason: RESTART_REASONS.UNHEALTHY_CLUSTER
+    }
+  }
+
+  return {
+    should_restart: false,
+    reason: ''
+  }
+}
+
 export const handler = async (event) => {
-  const ssmClient = new SSMClient({ region: event.region });
+  const ssmClient = new SSMClient({ region: event.aws.region });
 
+  if (!VALID_NETWORKS.includes(event.network.name)) {
+    throw Error(`Network should be one of the following: ${JSON.stringify(VALID_NETWORKS)}`)
+  }
+
+  let shouldRestart = null
   try {
-    const { network, metagraph_id } = event
-    if (!network || !metagraph_id) {
-      throw Error("network and metagraph_id are required.")
+    const { lastSnapshotTimestamp } = await getLastMetagraphInfo(event)
+
+    shouldRestart = await shouldRestartMetagraph(event, lastSnapshotTimestamp)
+    if (!shouldRestart.should_restart) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify('Metagraph healthy, ignoring restart!'),
+      };
     }
 
-    if (!VALID_NETWORKS.includes(network)) {
-      throw Error(`Network should be one of the following: ${JSON.stringify(VALID_NETWORKS)}`)
-    }
-
-    const { ec2_instance_1_ip, ec2_instance_2_ip, ec2_instance_3_ip } = event;
-    if (!ec2_instance_1_ip || !ec2_instance_2_ip || !ec2_instance_3_ip) {
-      throw Error("All 3 ec2 instances IPs are required")
-    }
-
-    const { ec2_instance_1_id, ec2_instance_2_id, ec2_instance_3_id } = event;
-    if (!ec2_instance_1_id || !ec2_instance_2_id || !ec2_instance_3_id) {
-      throw Error("All 3 ec2 instances IDs are required")
-    }
-
-    if (!event.force_restart) {
-      const diffBetweenLastMetagraphSnapshotAndNow = await getDiffBetweenLastMetagraphSnapshotAndNow(network, metagraph_id)
-      if (diffBetweenLastMetagraphSnapshotAndNow < 4) {
-        return {
-          statusCode: 200,
-          body: JSON.stringify('Metagraph producing snapshots correctly, skipping.'),
-        };
-      }
-    } else {
-      console.log("Force restart provided, restarting ...")
-    }
     printSeparatorWithMessage('STARTING THE RESTART')
 
     const logsNames = getLogsNames();
@@ -121,7 +148,7 @@ export const handler = async (event) => {
 
     await checkIfNewSnapshotsAreProducedAfterRestart(event)
 
-    await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, RESTART_REASONS.STOP_PRODUCING_SNAPSHOTS)
+    await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, shouldRestart.reason)
 
     printSeparatorWithMessage('FINISHED THE RESTART')
 
@@ -131,7 +158,7 @@ export const handler = async (event) => {
     };
 
   } catch (e) {
-    await createMetagraphRestartFailureAlert(ssmClient, event, e.message, RESTART_REASONS.STOP_PRODUCING_SNAPSHOTS)
+    await createMetagraphRestartFailureAlert(ssmClient, event, e.message, shouldRestart ? shouldRestart.reason : 'Unknow reason')
     throw e
   }
 };

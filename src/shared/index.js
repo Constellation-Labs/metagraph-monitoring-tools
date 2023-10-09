@@ -7,14 +7,22 @@ const sleep = (ms) => {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-const getDiffBetweenLastMetagraphSnapshotAndNow = async (network, metagraph_id) => {
-  const beUrl = `https://be-${network}.constellationnetwork.io/currency/${metagraph_id}/snapshots/latest`
+const getLastMetagraphInfo = async (event) => {
+  const { network, metagraph } = event;
+  const beUrl = `https://be-${network.name}.constellationnetwork.io/currency/${metagraph.id}/snapshots/latest`
   try {
     const response = await axios.get(beUrl)
     const lastSnapshotTimestamp = response.data.data.timestamp
-    console.log(`LAST SNAPSHOT OF THE METAGRAPH ${metagraph_id}: ${lastSnapshotTimestamp}`)
+    const lastSnapshotOrdinal = response.data.data.ordinal
+    const lastSnapshotHash = response.data.data.hash
 
-    return moment.utc().diff(lastSnapshotTimestamp, 'minutes')
+    console.log(`LAST SNAPSHOT OF METAGRAPH ${metagraph.id}: ${lastSnapshotTimestamp}. Ordinal: ${lastSnapshotOrdinal}. Hash: ${lastSnapshotHash}`)
+
+    return {
+      lastSnapshotTimestamp,
+      lastSnapshotOrdinal,
+      lastSnapshotHash
+    }
   } catch (e) {
     console.log(e)
     throw Error(`Error when searching for metagraph on: ${beUrl}`, e)
@@ -60,7 +68,7 @@ const killCurrentProcesses = async (ssmClient, event, ec2InstancesIds) => {
     metagraph_l0_public_port,
     currency_l1_public_port,
     data_l1_public_port,
-  } = event
+  } = event.metagraph.ports
 
   const commands = [
     `fuser -k ${metagraph_l0_public_port}/tcp`,
@@ -71,23 +79,64 @@ const killCurrentProcesses = async (ssmClient, event, ec2InstancesIds) => {
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
-const joinNodeToCluster = async (ssmClient, event, layer, joiningNodeId, ec2InstancesIds) => {
-  const joiningInstruction = {
-    [LAYERS.L0]: `curl -v -X POST http://localhost:${event.metagraph_l0_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${joiningNodeId}", "ip": "${event.ec2_instance_1_ip}", "p2pPort": ${event.metagraph_l0_p2p_port} }'`,
-    [LAYERS.CURRENCY_L1]: `curl -v -X POST http://localhost:${event.currency_l1_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${joiningNodeId}", "ip": "${event.ec2_instance_1_ip}", "p2pPort": ${event.currency_l1_p2p_port} }'`,
-    [LAYERS.DATA_L1]: `curl -v -X POST http://localhost:${event.data_l1_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${joiningNodeId}", "ip": "${event.ec2_instance_1_ip}", "p2pPort": ${event.data_l1_p2p_port} }'`
+const getRemoveInstructionByOrdinal = async (event, ordinal) => {
+  const beUrl = `https://be-${event.network.name}.constellationnetwork.io/currency/${event.metagraph.id}/snapshots/${ordinal}`
+  try {
+    const response = await axios.get(beUrl)
+    const lastSnapshotOrdinal = response.data.data.ordinal
+    const lastSnapshotHash = response.data.data.hash
+
+    return [`rm data/incremental_snapshot/${lastSnapshotOrdinal}`, `rm data/incremental_snapshot/${lastSnapshotHash}`]
+  } catch (e) {
+    return [`rm data/incremental_snapshot/${ordinal}`]
+  }
 }
 
-const commands = [joiningInstruction[layer]]
+const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => {
+  const { file_system } = event.metagraph
+  const { lastSnapshotOrdinal } = await getLastMetagraphInfo(event)
+  const initialSnapshotToRemove = lastSnapshotOrdinal
+  const finalSnapshotToRemove = initialSnapshotToRemove + 50
 
-await sendCommand(ssmClient, commands, ec2InstancesIds)
+  console.log(`Removing snapshots on data folder between: ${initialSnapshotToRemove} - ${finalSnapshotToRemove}`)
+  
+  //Somehow the syntax rm data/incremental_snapshot/{x..y} doesn't work, so we put individually
+  const promises = []
+  for (let idx = initialSnapshotToRemove; idx <= finalSnapshotToRemove; idx++) {
+    promises.push(getRemoveInstructionByOrdinal(event, idx))
+  }
+
+  const deletingCommands = await Promise.all(promises)
+  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc,...curr], []);
+
+  const commands = [
+    `cd ${file_system.base_metagraph_l0_directory}`,
+    ...allDeletingCommands
+  ]
+
+  await sendCommand(ssmClient, commands, ec2InstancesIds)
+}
+
+const joinNodeToCluster = async (ssmClient, event, layer, joiningNodeId, ec2InstancesIds) => {
+  const { ports } = event.metagraph
+
+  const joiningInstruction = {
+    [LAYERS.L0]: `curl -v -X POST http://localhost:${ports.metagraph_l0_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${joiningNodeId}", "ip": "${event.aws.ec2.instances.genesis.ip}", "p2pPort": ${ports.metagraph_l0_p2p_port} }'`,
+    [LAYERS.CURRENCY_L1]: `curl -v -X POST http://localhost:${ports.currency_l1_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${joiningNodeId}", "ip": "${event.aws.ec2.instances.genesis.ip}", "p2pPort": ${ports.currency_l1_p2p_port} }'`,
+    [LAYERS.DATA_L1]: `curl -v -X POST http://localhost:${ports.data_l1_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${joiningNodeId}", "ip": "${event.aws.ec2.instances.genesis.ip}", "p2pPort": ${ports.data_l1_p2p_port} }'`
+  }
+
+  const commands = [joiningInstruction[layer]]
+
+  await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
 const getInformationToJoinNode = async (event, layer) => {
+  const { ports } = event.metagraph
   var urls = {
-    [LAYERS.L0]: `http://${event.ec2_instance_1_ip}:${event.metagraph_l0_public_port}/node/info`,
-    [LAYERS.CURRENCY_L1]: `http://${event.ec2_instance_1_ip}:${event.currency_l1_public_port}/node/info`,
-    [LAYERS.DATA_L1]: `http://${event.ec2_instance_1_ip}:${event.data_l1_public_port}/node/info`,
+    [LAYERS.L0]: `http://${event.aws.ec2.instances.genesis.ip}:${ports.metagraph_l0_public_port}/node/info`,
+    [LAYERS.CURRENCY_L1]: `http://${event.aws.ec2.instances.genesis.ip}:${ports.currency_l1_public_port}/node/info`,
+    [LAYERS.DATA_L1]: `http://${event.aws.ec2.instances.genesis.ip}:${ports.data_l1_public_port}/node/info`,
   }
 
   for (let idx = 0; idx < 11; idx++) {
@@ -107,22 +156,17 @@ const getInformationToJoinNode = async (event, layer) => {
 }
 
 const checkIfValidatorsStarted = async (event, layer) => {
-  var urls = {
-    [LAYERS.L0]: [
-      `http://${event.ec2_instance_2_ip}:${event.metagraph_l0_public_port}/node/info`,
-      `http://${event.ec2_instance_3_ip}:${event.metagraph_l0_public_port}/node/info`
-    ],
-    [LAYERS.CURRENCY_L1]: [
-      `http://${event.ec2_instance_2_ip}:${event.currency_l1_public_port}/node/info`,
-      `http://${event.ec2_instance_3_ip}:${event.currency_l1_public_port}/node/info`
-    ],
-    [LAYERS.DATA_L1]: [
-      `http://${event.ec2_instance_2_ip}:${event.data_l1_public_port}/node/info`,
-      `http://${event.ec2_instance_3_ip}:${event.data_l1_public_port}/node/info`
-    ],
+  const { ports } = event.metagraph
+  var layerPorts = {
+    [LAYERS.L0]: ports.metagraph_l0_public_port,
+    [LAYERS.CURRENCY_L1]: ports.currency_l1_public_port,
+    [LAYERS.DATA_L1]: ports.data_l1_public_port
   }
 
-  const validatorsUrls = urls[layer]
+  const validatorsUrls = event.aws.ec2.instances.validators.map(validator => {
+    return `http://${validator.ip}:${layerPorts[layer]}/node/info`
+  })
+
   for (const url of validatorsUrls) {
     console.log(`Checking validator at URL: ${url}`)
     for (let idx = 0; idx < 11; idx++) {
@@ -142,11 +186,12 @@ const checkIfValidatorsStarted = async (event, layer) => {
 }
 
 const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
+  const { file_system } = event.metagraph
   printSeparatorWithMessage(`Saving logs ${layer} layer`)
   const directory = {
-    [LAYERS.L0]: `cd ${event.base_metagraph_l0_directory}`,
-    [LAYERS.CURRENCY_L1]: `cd ${event.base_currency_l1_directory}`,
-    [LAYERS.DATA_L1]: `cd ${event.base_data_l1_directory}`
+    [LAYERS.L0]: `cd ${file_system.base_metagraph_l0_directory}`,
+    [LAYERS.CURRENCY_L1]: `cd ${file_system.base_currency_l1_directory}`,
+    [LAYERS.DATA_L1]: `cd ${file_system.base_data_l1_directory}`
   }
 
   const commands = [
@@ -166,24 +211,18 @@ const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
 
 const checkIfAllNodesAreReady = async (event, layer) => {
   printSeparatorWithMessage(`[${layer}] Checking nodes statuses`)
-  const allUrls = {
-    // Using only first node because the other ones could take more than timeout limit of lambda
-    [LAYERS.L0]: [
-      `http://${event.ec2_instance_1_ip}:${event.metagraph_l0_public_port}/node/info`,
-    ],
-    [LAYERS.CURRENCY_L1]: [
-      `http://${event.ec2_instance_1_ip}:${event.currency_l1_public_port}/node/info`,
-      `http://${event.ec2_instance_2_ip}:${event.currency_l1_public_port}/node/info`,
-      `http://${event.ec2_instance_3_ip}:${event.currency_l1_public_port}/node/info`
-    ],
-    [LAYERS.DATA_L1]: [
-      `http://${event.ec2_instance_1_ip}:${event.data_l1_public_port}/node/info`,
-      `http://${event.ec2_instance_2_ip}:${event.data_l1_public_port}/node/info`,
-      `http://${event.ec2_instance_3_ip}:${event.data_l1_public_port}/node/info`
-    ]
+  const { ports } = event.metagraph
+  var layerPorts = {
+    [LAYERS.L0]: ports.metagraph_l0_public_port,
+    [LAYERS.CURRENCY_L1]: ports.currency_l1_public_port,
+    [LAYERS.DATA_L1]: ports.data_l1_public_port
   }
 
-  let urls = allUrls[layer]
+  const validatorsUrls = layer === LAYERS.L0 ? [] : event.aws.ec2.instances.validators.map(validator => {
+    return `http://${validator.ip}:${layerPorts[layer]}/node/info`
+  })
+
+  let urls = [`http://${event.aws.ec2.instances.genesis.ip}:${layerPorts[layer]}/node/info`, ...validatorsUrls]
   for (let idx = 0; idx < 20; idx++) {
     try {
       const readyNodesUrls = []
@@ -220,13 +259,59 @@ const checkIfAllNodesAreReady = async (event, layer) => {
 
 }
 
+const getAllEC2NodesInstances = (event) => {
+  const genesisNodeId = event.aws.ec2.instances.genesis.id
+  const validatorNodesId = event.aws.ec2.instances.validators.map(validator => validator.id)
+
+  return [genesisNodeId, ...validatorNodesId]
+}
+
+const getUnhealthyClusters = async (event) => {
+  const { ports } = event.metagraph
+  let urls = [`http://${event.aws.ec2.instances.genesis.ip}:${ports.metagraph_l0_public_port}/cluster/info`]
+
+  if (event.metagraph.include_currency_l1_layer) {
+    urls.push(`http://${event.aws.ec2.instances.genesis.ip}:${ports.currency_l1_public_port}/cluster/info`)
+  }
+
+  if (event.metagraph.include_data_l1_layer) {
+    urls.push(`http://${event.aws.ec2.instances.genesis.ip}:${ports.data_l1_public_port}/cluster/info`)
+  }
+
+  const unhealthyClusters = []
+  for (const url of urls) {
+    try {
+      console.log(url)
+      const response = await axios.get(url)
+      const clusterInfo = response.data
+      console.log(clusterInfo)
+      if (clusterInfo.length < 3) {
+        unhealthyClusters.push(url)
+        continue
+      }
+
+      const anyNodeNotReady = response.data.some(node => {
+        return node.status !== 'Ready'
+      })
+
+      if (anyNodeNotReady) {
+        unhealthyClusters.push(url)
+      }
+    } catch (e) {
+      unhealthyClusters.push(url)
+    }
+  }
+
+  return unhealthyClusters
+}
+
 const printSeparatorWithMessage = (message) => {
   console.log(`\n########################## ${message} ###############################\n`)
 }
 
 export {
   sleep,
-  getDiffBetweenLastMetagraphSnapshotAndNow,
+  getLastMetagraphInfo,
   sendCommand,
   killCurrentProcesses,
   joinNodeToCluster,
@@ -236,5 +321,8 @@ export {
   getSSMParameter,
   getKeys,
   saveLogs,
-  checkIfAllNodesAreReady
+  checkIfAllNodesAreReady,
+  getAllEC2NodesInstances,
+  deleteSnapshotNotSyncToGL0,
+  getUnhealthyClusters
 }
