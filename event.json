@@ -1,46 +1,59 @@
 {
-  "network": ":network_name",
-  "metagraph_id": ":metagraph_id",
-  "metagraph_name": ":metagraph_name",
-
-  "base_metagraph_l0_directory": "/home/ubuntu/code/metagraph-l0",
-  "base_currency_l1_directory": "/home/ubuntu/code/currency-l1",
-  "base_data_l1_directory": "/home/ubuntu/code/data-l1",
-
-  "cl_app_env": ":network_name",
-  "cl_collateral": 0,
-
-  "additional_metagraph_l0_env_variables": [],
-  "additional_currency_l1_env_variables": [],
-  "additional_data_l1_env_variables": [],
-
-  "include_currency_l1_layer": true,
-  "include_data_l1_layer": true,
-  
-  "metagraph_l0_public_port": 7000,
-  "metagraph_l0_p2p_port": 7001,
-  "metagraph_l0_cli_port": 7002,
-
-  "currency_l1_public_port": 8000,
-  "currency_l1_p2p_port": 8001,
-  "currency_l1_cli_port": 8002,
-
-  "data_l1_public_port": 9000,
-  "data_l1_p2p_port": 9001,
-  "data_l1_cli_port": 9002,
-
-  "region":":aws_region",
-  "ec2_instance_1_id": ":ec2_instance_1_id",
-  "ec2_instance_1_ip": ":ec2_instance_1_ip",
-
-  "ec2_instance_2_id": ":ec2_instance_2_id",
-  "ec2_instance_2_ip": ":ec2_instance_2_ip",
-
-  "ec2_instance_3_id": ":ec2_instance_3_id",
-  "ec2_instance_3_ip": ":ec2_instance_2_ip",
-
-  "network_global_l0_ip": ":network_l0_node_ip",
-  "network_global_l0_port": ":network_l0_node_port",
-  "network_global_l0_id": ":network_l0_node_id"
-
+  "metagraph": {
+    "id": ":metagraph_id",
+    "name": ":metagraph_name",
+    "include_currency_l1_layer": true,
+    "include_data_l1_layer": true,
+    "file_system": {
+      "base_metagraph_l0_directory": "/home/ubuntu/code/metagraph-l0",
+      "base_currency_l1_directory": "/home/ubuntu/code/currency-l1",
+      "base_data_l1_directory": "/home/ubuntu/code/data-l1"
+    },
+    "ports": {
+      "metagraph_l0_public_port": 7000,
+      "metagraph_l0_p2p_port": 7001,
+      "metagraph_l0_cli_port": 7002,
+      "currency_l1_public_port": 8000,
+      "currency_l1_p2p_port": 8001,
+      "currency_l1_cli_port": 8002,
+      "data_l1_public_port": 9000,
+      "data_l1_p2p_port": 9001,
+      "data_l1_cli_port": 9002
+    },
+    "required_env_variables": {
+      "cl_app_env": "testnet",
+      "cl_collateral": 0
+    },
+    "additional_metagraph_l0_env_variables": [],
+    "additional_currency_l1_env_variables": [],
+    "additional_data_l1_env_variables": []
+  },
+  "network": {
+    "name": "integrationnet|testnet|mainnet",
+    "gl0_node_ip": ":gl0_node_ip",
+    "gl0_node_id": ":gl0_node_id",
+    "gl0_node_port": ":gl0_node_port"
+  },
+  "aws": {
+    "region": ":aws_region",
+    "ec2": {
+      "instances": {
+        "genesis": {
+          "id": ":genesis_node_instance_id",
+          "ip": "genesis_node_instance_ip"
+        },
+        "validators": [
+          {
+            "id": ":validator_1_node_instance_id",
+            "ip": ":validator_1_node_instance_ip"
+          },
+          {
+            "id": ":validator_2_node_instance_id",
+            "ip": ":validator_2_node_instance_ip"
+          }
+        ]
+      }
+    }
+  },
+  "force_metagraph_restart": false
 }

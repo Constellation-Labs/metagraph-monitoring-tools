@@ -3,56 +3,71 @@ import { getSSMParameter, printSeparatorWithMessage } from '../shared/index.js'
 
 const OPSGENIE_ALERT_URL = "https://api.opsgenie.com/v2/alerts"
 
+const buildValidatorsLogsURLs = (validators, prefix, port) => {
+  const messages = []
+  for (const [idx, validator] of validators) {
+    messages.push(`${prefix} - ${idx + 1}: http://${validator.ip}:${port}/node/info`)
+  }
+
+  return messages.join('\n')
+}
+
+const buildValidatorsLogsInstances = (validators) => {
+  const messages = []
+  for (const [idx, validator] of validators) {
+    messages.push(`Instance ${idx + 1} (Validator) ID: ${validator.id}`)
+    messages.push(`Instance ${idx + 1} (Validator) IP: ${validator.ip}`)
+  }
+
+  return messages.join('\n')
+}
+
 const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
+  const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
+  const { name: networkName } = event.network
+  const { genesis, validators } = event.aws.ec2.instances
+
   return {
-    message: `${event.metagraph_name} Metagraph Restarted`,
+    message: `${metagraphName} Metagraph Restarted`,
     description: `
-    The ${event.metagraph_name} Metagraph restarted succesfully on ${event.network}.
+    The ${metagraphName} Metagraph restarted succesfully on ${networkName}.
     Restart reason: ${restartReason}
     
     You can check the metagraph nodes on these URLs:
-    ML0 - 1: http://${event.ec2_instance_1_ip}:${event.metagraph_l0_public_port}/node/info
-    ML0 - 2: http://${event.ec2_instance_2_ip}:${event.metagraph_l0_public_port}/node/info
-    ML0 - 3: http://${event.ec2_instance_3_ip}:${event.metagraph_l0_public_port}/node/info
+    ML0 - Genesis: http://${genesis.ip}:${ports.metagraph_l0_public_port}/node/info
+    ${buildValidatorsLogsURLs(validators, 'ML0', ports.metagraph_l0_public_port)}
 
-    ${event.include_currency_l1_layer ?
-      `
-    CL1 - 1: http://${event.ec2_instance_1_ip}:${event.currency_l1_public_port}/node/info
-    CL1 - 2: http://${event.ec2_instance_2_ip}:${event.currency_l1_public_port}/node/info
-    CL1 - 3: http://${event.ec2_instance_3_ip}:${event.currency_l1_public_port}/node/info
+    ${include_currency_l1_layer ?
+        `
+    CL1 - Genesis: http://${genesis.ip}:${ports.currency_l1_public_port}/node/info
+    ${buildValidatorsLogsURLs(validators, 'CL1', ports.currency_l1_public_port)}
     `: ''
       }
 
-    ${event.include_data_l1_layer ?
-      `
-    DL1 - 1: http://${event.ec2_instance_1_ip}:${event.data_l1_public_port}/node/info
-    DL1 - 2: http://${event.ec2_instance_2_ip}:${event.data_l1_public_port}/node/info
-    DL1 - 3: http://${event.ec2_instance_3_ip}:${event.data_l1_public_port}/node/info
+    ${include_data_l1_layer ?
+        `
+    DL1 - Genesis: http://${genesis.ip}:${ports.data_l1_public_port}/node/info
+    ${buildValidatorsLogsURLs(validators, 'DL1', ports.data_l1_public_port)}
     `: ''
       }
 
     The following logs were stored in the following directories on EC2 instances:
     /home/ubuntu/code/restart_logs/${logNames.l0LogName}
-    ${event.include_currency_l1_layer ? `/home/ubuntu/code/restart_logs/${logNames.cl1LogName}`: ''}
-    ${event.include_data_l1_layer ? `/home/ubuntu/code/restart_logs/${logNames.dl1LogName}`: ''}
+    ${include_currency_l1_layer ? `/home/ubuntu/code/restart_logs/${logNames.cl1LogName}` : ''}
+    ${include_data_l1_layer ? `/home/ubuntu/code/restart_logs/${logNames.dl1LogName}` : ''}
     
     EC2 instances:
-    Instance 1 ID: ${event.ec2_instance_1_id}
-    Instance 1 IP: ${event.ec2_instance_1_ip}
-
-    Instance 2 ID: ${event.ec2_instance_2_id}
-    Instance 2 IP: ${event.ec2_instance_2_ip}
-
-    Instance 3 ID: ${event.ec2_instance_3_id}
-    Instance 3 IP: ${event.ec2_instance_3_ip}
+    Instance 1 (Genesis) ID: ${genesis.id}
+    Instance 1 (Genesis) IP: ${genesis.ip}
+    ${buildValidatorsLogsInstances(validators)}
     `,
-    alias: `${event.metagraph_id}_successfully_restarted`,
+    alias: `${id}_successfully_restarted`,
     actions: ["Metagraph", "Restart"],
     tags: ["Metagraph", "Restart", "Successfully"],
     details: {
-      metagraphId: event.metagraph_id,
-      network: event.network,
-      metagraphName: event.metagraph_name
+      metagraphId: id,
+      network: networkName,
+      metagraphName: metagraphName
     },
     entity: "Metagraph",
     priority: "P3"
@@ -60,51 +75,47 @@ const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
 }
 
 const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
+  const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
+  const { name: networkName } = event.network
+  const { genesis, validators } = event.aws.ec2.instances
+
   return {
-    message: `${event.metagraph_name} Metagraph Failed To Restarted`,
+    message: `${metagraphName} Metagraph Failed To Restarted`,
     description: `
-    The ${event.metagraph_name} Metagraph failed to restarted on ${event.network}.
+    The ${metagraphName} Metagraph failed to restarted on ${networkName}.
     Restart reason: ${restartReason}
     Error message returned: ${errorMessage}
     
     You can check the metagraph nodes on these URLs:
-    ML0 - 1: http://${event.ec2_instance_1_ip}:${event.metagraph_l0_public_port}/node/info
-    ML0 - 2: http://${event.ec2_instance_2_ip}:${event.metagraph_l0_public_port}/node/info
-    ML0 - 3: http://${event.ec2_instance_3_ip}:${event.metagraph_l0_public_port}/node/info
+    ML0 - Genesis: http://${genesis.ip}:${ports.metagraph_l0_public_port}/node/info
+    ${buildValidatorsLogsURLs(validators, 'ML0', ports.metagraph_l0_public_port)}
 
-    ${event.include_currency_l1_layer ?
-      `
-    CL1 - 1: http://${event.ec2_instance_1_ip}:${event.currency_l1_public_port}/node/info
-    CL1 - 2: http://${event.ec2_instance_2_ip}:${event.currency_l1_public_port}/node/info
-    CL1 - 3: http://${event.ec2_instance_3_ip}:${event.currency_l1_public_port}/node/info
+    ${include_currency_l1_layer ?
+        `
+    CL1 - Genesis: http://${genesis.ip}:${ports.currency_l1_public_port}/node/info
+    ${buildValidatorsLogsURLs(validators, 'CL1', ports.currency_l1_public_port)}
     `: ''
       }
 
-    ${event.include_data_l1_layer ?
-      `
-    DL1 - 1: http://${event.ec2_instance_1_ip}:${event.data_l1_public_port}/node/info
-    DL1 - 2: http://${event.ec2_instance_2_ip}:${event.data_l1_public_port}/node/info
-    DL1 - 3: http://${event.ec2_instance_3_ip}:${event.data_l1_public_port}/node/info
+    ${include_data_l1_layer ?
+        `
+    DL1 - Genesis: http://${genesis.ip}:${ports.data_l1_public_port}/node/info
+    ${buildValidatorsLogsURLs(validators, 'DL1', ports.data_l1_public_port)}
     `: ''
       }
     
     EC2 instances:
-    Instance 1 ID: ${event.ec2_instance_1_id}
-    Instance 1 IP: ${event.ec2_instance_1_ip}
-
-    Instance 2 ID: ${event.ec2_instance_2_id}
-    Instance 2 IP: ${event.ec2_instance_2_ip}
-
-    Instance 3 ID: ${event.ec2_instance_3_id}
-    Instance 3 IP: ${event.ec2_instance_3_ip}
+    Instance 1 (Genesis) ID: ${genesis.id}
+    Instance 1 (Genesis) IP: ${genesis.ip}
+    ${buildValidatorsLogsInstances(validators)}
     `,
     actions: ["Metagraph", "Restart"],
-    alias: `${event.metagraph_id}_failure_restarted`,
+    alias: `${id}_failure_restarted`,
     tags: ["Metagraph", "Restart", "Failure"],
     details: {
-      metagraphId: event.metagraph_id,
-      network: event.network,
-      metagraphName: event.metagraph_name
+      metagraphId: id,
+      network: networkName,
+      metagraphName: metagraphName
     },
     entity: "Metagraph",
     priority: "P1"

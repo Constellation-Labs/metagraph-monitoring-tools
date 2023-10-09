@@ -5,73 +5,93 @@ import {
   joinNodeToCluster,
   printSeparatorWithMessage,
   getKeys,
-  saveLogs
+  saveLogs,
+  getAllEC2NodesInstances
 } from '../shared/index.js'
 import { LAYERS } from '../utils/types.js'
 
 const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2InstancesIds) => {
-  const cl1Keys = await getKeys(ssmClient, event.ec2_instance_1_id, 'cl1')
+  const cl1Keys = await getKeys(ssmClient, event.aws.ec2.instances.genesis.id, 'cl1')
+
+  const { ports } = event.metagraph
+  const { gl0_node_ip, gl0_node_id, gl0_node_port } = event.network
+  const {
+    id,
+    required_env_variables,
+    additional_currency_l1_env_variables,
+    file_system
+  } = event.metagraph
 
   const envVariables = [
     `export CL_KEYSTORE="${cl1Keys.keyStore}"`,
     `export CL_KEYALIAS="${cl1Keys.keyAlias}"`,
     `export CL_PASSWORD="${cl1Keys.password}"`,
-    `export CL_PUBLIC_HTTP_PORT=${event.currency_l1_public_port}`,
-    `export CL_P2P_HTTP_PORT=${event.currency_l1_p2p_port}`,
-    `export CL_CLI_HTTP_PORT=${event.currency_l1_cli_port}`,
 
-    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${event.network_global_l0_ip}`,
-    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${event.network_global_l0_port}`,
-    `export CL_GLOBAL_L0_PEER_ID=${event.network_global_l0_id}`,
+    `export CL_PUBLIC_HTTP_PORT=${ports.currency_l1_public_port}`,
+    `export CL_P2P_HTTP_PORT=${ports.currency_l1_p2p_port}`,
+    `export CL_CLI_HTTP_PORT=${ports.currency_l1_cli_port}`,
 
-    `export CL_L0_PEER_HTTP_HOST=${event.ec2_instance_1_ip}`,
-    `export CL_L0_PEER_HTTP_PORT=${event.metagraph_l0_public_port}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${gl0_node_ip}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${gl0_node_port}`,
+    `export CL_GLOBAL_L0_PEER_ID=${gl0_node_id}`,
+
+    `export CL_L0_PEER_HTTP_HOST=${event.aws.ec2.instances.genesis.ip}`,
+    `export CL_L0_PEER_HTTP_PORT=${ports.metagraph_l0_public_port}`,
     `export CL_L0_PEER_ID=${mL0NodeId}`,
 
-    `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
-    `export CL_APP_ENV=${event.cl_app_env}`,
-    `export CL_COLLATERAL=${event.cl_collateral}`
+    `export CL_L0_TOKEN_IDENTIFIER=${id}`,
+    `export CL_APP_ENV=${required_env_variables.cl_app_env}`,
+    `export CL_COLLATERAL=${required_env_variables.cl_collateral}`
   ]
 
-  for (const variable of event.additional_currency_l1_env_variables) {
+  for (const variable of additional_currency_l1_env_variables || []) {
     envVariables.push(`export ${variable}`)
   }
 
   const commands = [
     ...envVariables,
-    `cd ${event.base_currency_l1_directory}`,
-    `nohup java -jar currency-l1.jar run-initial-validator --ip ${event.ec2_instance_1_ip} > node-l1.log 2>&1 &`
+    `cd ${file_system.base_currency_l1_directory}`,
+    `nohup java -jar currency-l1.jar run-initial-validator --ip ${event.aws.ec2.instances.genesis.ip} > node-l1.log 2>&1 &`
   ]
 
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
 const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceIp, ec2InstancesIds) => {
+  const { ports } = event.metagraph
+  const { gl0_node_ip, gl0_node_id, gl0_node_port } = event.network
+  const {
+    id,
+    required_env_variables,
+    additional_currency_l1_env_variables,
+    file_system
+  } = event.metagraph
+
   const envVariables = [
-    `export CL_PUBLIC_HTTP_PORT=${event.currency_l1_public_port}`,
-    `export CL_P2P_HTTP_PORT=${event.currency_l1_p2p_port}`,
-    `export CL_CLI_HTTP_PORT=${event.currency_l1_cli_port}`,
+    `export CL_PUBLIC_HTTP_PORT=${ports.currency_l1_public_port}`,
+    `export CL_P2P_HTTP_PORT=${ports.currency_l1_p2p_port}`,
+    `export CL_CLI_HTTP_PORT=${ports.currency_l1_cli_port}`,
 
-    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${event.network_global_l0_ip}`,
-    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${event.network_global_l0_port}`,
-    `export CL_GLOBAL_L0_PEER_ID=${event.network_global_l0_id}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${gl0_node_ip}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${gl0_node_port}`,
+    `export CL_GLOBAL_L0_PEER_ID=${gl0_node_id}`,
 
-    `export CL_L0_PEER_HTTP_HOST=${event.ec2_instance_1_ip}`,
-    `export CL_L0_PEER_HTTP_PORT=${event.metagraph_l0_public_port}`,
+    `export CL_L0_PEER_HTTP_HOST=${event.aws.ec2.instances.genesis.ip}`,
+    `export CL_L0_PEER_HTTP_PORT=${ports.metagraph_l0_public_port}`,
     `export CL_L0_PEER_ID=${mL0NodeId}`,
 
-    `export CL_L0_TOKEN_IDENTIFIER=${event.metagraph_id}`,
-    `export CL_APP_ENV=${event.cl_app_env}`,
-    `export CL_COLLATERAL=${event.cl_collateral}`,
+    `export CL_L0_TOKEN_IDENTIFIER=${id}`,
+    `export CL_APP_ENV=${required_env_variables.cl_app_env}`,
+    `export CL_COLLATERAL=${required_env_variables.cl_collateral}`,
   ]
 
-  for (const variable of event.additional_currency_l1_env_variables) {
+  for (const variable of additional_currency_l1_env_variables || []) {
     envVariables.push(`export ${variable}`)
   }
 
   const commands = [
     ...envVariables,
-    `cd ${event.base_currency_l1_directory}`,
+    `cd ${file_system.base_currency_l1_directory}`,
     `nohup java -jar currency-l1.jar run-validator --ip ${instanceIp} > node-l1.log 2>&1 &`
   ]
 
@@ -79,44 +99,30 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
 }
 
 const restartCurrencyL1Nodes = async (ssmClient, event, metagraphL0NodeId, logName) => {
-  await saveLogs(ssmClient, event, logName, LAYERS.CURRENCY_L1, [
-    event.ec2_instance_1_id,
-    event.ec2_instance_2_id,
-    event.ec2_instance_3_id
-  ])
+  const allEC2NodesIntances = getAllEC2NodesInstances(event)
+  await saveLogs(ssmClient, event, logName, LAYERS.CURRENCY_L1, allEC2NodesIntances)
 
   printSeparatorWithMessage('Starting initial validator currency l1 node')
-  await startInitialValidatorNodeL1(ssmClient, event, metagraphL0NodeId, [event.ec2_instance_1_id])
+  await startInitialValidatorNodeL1(ssmClient, event, metagraphL0NodeId, [event.aws.ec2.instances.genesis.id])
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage('Starting validators currency l1 node')
-  const validator1Keys = await getKeys(ssmClient, event.ec2_instance_2_id, 'cl1')
-  await startValidatorNodeL1(
-    ssmClient,
-    event,
-    metagraphL0NodeId,
-    [
-      `export CL_KEYSTORE="${validator1Keys.keyStore}"`,
-      `export CL_KEYALIAS="${validator1Keys.keyAlias}"`,
-      `export CL_PASSWORD="${validator1Keys.password}"`
-    ],
-    event.ec2_instance_2_ip,
-    [event.ec2_instance_2_id]
-  )
-
-  const validator2Keys = await getKeys(ssmClient, event.ec2_instance_3_id, 'cl1')
-  await startValidatorNodeL1(
-    ssmClient,
-    event,
-    metagraphL0NodeId,
-    [
-      `export CL_KEYSTORE="${validator2Keys.keyStore}"`,
-      `export CL_KEYALIAS="${validator2Keys.keyAlias}"`,
-      `export CL_PASSWORD="${validator2Keys.password}"`
-    ],
-    event.ec2_instance_3_ip,
-    [event.ec2_instance_3_id]
-  )
+  for (const validator of event.aws.ec2.instances.validators) {
+    console.log(`Starting validator ${validator.ip}`)
+    const validator1Keys = await getKeys(ssmClient, validator.id, 'cl1')
+    await startValidatorNodeL1(
+      ssmClient,
+      event,
+      metagraphL0NodeId,
+      [
+        `export CL_KEYSTORE="${validator1Keys.keyStore}"`,
+        `export CL_KEYALIAS="${validator1Keys.keyAlias}"`,
+        `export CL_PASSWORD="${validator1Keys.password}"`
+      ],
+      validator.ip,
+      [validator.id]
+    )
+  }
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage('Starting to get information to join node')
@@ -128,8 +134,10 @@ const restartCurrencyL1Nodes = async (ssmClient, event, metagraphL0NodeId, logNa
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage(`Joining validators currency L1 to the cluster. GenesisNodeId: ${nodeId}`)
-  await joinNodeToCluster(ssmClient, event, LAYERS.CURRENCY_L1, nodeId, [event.ec2_instance_2_id])
-  await joinNodeToCluster(ssmClient, event, LAYERS.CURRENCY_L1, nodeId, [event.ec2_instance_3_id])
+  for (const validator of event.aws.ec2.instances.validators) {
+    console.log(`Joining validator ${validator.ip}`)
+    await joinNodeToCluster(ssmClient, event, LAYERS.CURRENCY_L1, nodeId, [validator.id])
+  }
   printSeparatorWithMessage('Finished')
 
 }
