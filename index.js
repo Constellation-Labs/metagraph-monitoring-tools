@@ -148,7 +148,7 @@ export const handler = async (event) => {
 
     await checkIfNewSnapshotsAreProducedAfterRestart(event)
 
-    // await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, shouldRestart.reason)
+    await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, shouldRestart.reason)
 
     printSeparatorWithMessage('FINISHED THE RESTART')
 
@@ -158,7 +158,7 @@ export const handler = async (event) => {
     };
 
   } catch (e) {
-    // await createMetagraphRestartFailureAlert(ssmClient, event, e.message, shouldRestart ? shouldRestart.reason : 'Unknow reason')
+    await createMetagraphRestartFailureAlert(ssmClient, event, e.message, shouldRestart ? shouldRestart.reason : 'Unknow reason')
     throw e
   }
 };

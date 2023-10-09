@@ -249,11 +249,15 @@ const getAllEC2NodesInstances = (event) => {
 
 const getUnhealthyClusters = async (event) => {
   const { ports } = event.metagraph
-  let urls = [
-    `http://${event.aws.ec2.instances.genesis.ip}:${ports.metagraph_l0_public_port}/cluster/info`,
-    `http://${event.aws.ec2.instances.genesis.ip}:${ports.currency_l1_public_port}/cluster/info`,
-    `http://${event.aws.ec2.instances.genesis.ip}:${ports.data_l1_public_port}/cluster/info`
-  ]
+  let urls = [`http://${event.aws.ec2.instances.genesis.ip}:${ports.metagraph_l0_public_port}/cluster/info`]
+
+  if (event.metagraph.include_currency_l1_layer) {
+    urls.push(`http://${event.aws.ec2.instances.genesis.ip}:${ports.currency_l1_public_port}/cluster/info`)
+  }
+  
+  if (event.metagraph.include_data_l1_layer) {
+    urls.push(`http://${event.aws.ec2.instances.genesis.ip}:${ports.data_l1_public_port}/cluster/info`)
+  }
 
   const unhealthyClusters = []
   for (const url of urls) {
