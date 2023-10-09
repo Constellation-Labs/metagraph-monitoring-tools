@@ -281,20 +281,21 @@ const getUnhealthyClusters = async (event) => {
   const unhealthyClusters = []
   for (const url of urls) {
     try {
-      console.log(url)
       const response = await axios.get(url)
       const clusterInfo = response.data
-      console.log(clusterInfo)
+      console.log(clusterInfo.length)
       if (clusterInfo.length < 3) {
+        console.log(`Less than 3: ${url}`)
         unhealthyClusters.push(url)
         continue
       }
 
-      const anyNodeNotReady = response.data.some(node => {
-        return node.status !== 'Ready'
+      const anyNodeNotReady = clusterInfo.some(node => {
+        return node.state !== 'Ready'
       })
 
       if (anyNodeNotReady) {
+        console.log(`Not READY: ${url}`)
         unhealthyClusters.push(url)
       }
     } catch (e) {
