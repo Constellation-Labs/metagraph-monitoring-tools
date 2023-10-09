@@ -282,7 +282,6 @@ const getUnhealthyClusters = async (event) => {
     try {
       const response = await axios.get(url)
       const clusterInfo = response.data
-      console.log(clusterInfo.length)
       if (clusterInfo.length < 3) {
         console.log(`Less than 3: ${url}`)
         unhealthyClusters.push(url)
