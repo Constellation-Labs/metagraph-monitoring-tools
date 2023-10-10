@@ -282,7 +282,22 @@ const getUnhealthyClusters = async (event) => {
     try {
       const response = await axios.get(url)
       const clusterInfo = response.data
-      if (!url.includes(ports.metagraph_l0_public_port) && clusterInfo.length < 3) {
+      const isL0Url = url.includes(ports.metagraph_l0_public_port)
+      
+      if (isL0Url) {
+        const anyNodeReady = clusterInfo.some(node => {
+          return node.state === 'Ready'
+        })
+
+        if (!anyNodeReady) {
+          console.log("All L0 nodes are not ready")
+          unhealthyClusters.push(url)
+        }
+
+        continue
+      }
+
+      if (clusterInfo.length < 3) {
         console.log(`Less than 3: ${url}`)
         unhealthyClusters.push(url)
         continue
