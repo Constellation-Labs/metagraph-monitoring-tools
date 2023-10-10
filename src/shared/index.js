@@ -287,7 +287,7 @@ const getUnhealthyClusters = async (event) => {
       const response = await axios.get(url)
       const clusterInfo = response.data
       const isL0Url = url.includes(ports.metagraph_l0_public_port)
-
+      
       if (isL0Url) {
         const anyNodeReady = clusterInfo.some(node => {
           return node.state === 'Ready'
