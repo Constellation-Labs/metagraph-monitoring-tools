@@ -47,10 +47,9 @@ const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
   const commands = [
     ...envVariables,
     `cd ${file_system.base_metagraph_l0_directory}`,
-    `nohup java -jar metagraph-l0.jar run-rollback --prioritySeedlist seedlist --ip ${event.aws.ec2.instances.genesis.ip} > node-l0.log 2>&1 &`
+    `nohup java -jar metagraph-l0.jar run-rollback --ip ${event.aws.ec2.instances.genesis.ip} > node-l0.log 2>&1 &`
   ]
 
-  console.log(commands)
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
