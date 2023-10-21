@@ -138,7 +138,7 @@ const getInformationToJoinNode = async (event, layer) => {
     [LAYERS.DATA_L1]: `http://${event.aws.ec2.instances.genesis.ip}:${ports.data_l1_public_port}/node/info`,
   }
 
-  for (let idx = 0; idx < 11; idx++) {
+  for (let idx = 0; idx < 60; idx++) {
     try {
       const response = await axios.get(urls[layer])
       const nodeId = response.data.id
@@ -152,7 +152,7 @@ const getInformationToJoinNode = async (event, layer) => {
       if (idx === 10) {
         throw Error(`Could not get information of node in URL: ${urls[layer]}`)
       }
-      console.log(`Node is possibly not READY yet, waiting for 10s to try again (${idx + 1}/11)`)
+      console.log(`Node is possibly not READY yet, waiting for 10s to try again (${idx + 1}/60)`)
       await sleep(10000)
     }
   }
