@@ -149,7 +149,7 @@ const getInformationToJoinNode = async (event, layer) => {
 
       return { nodeId }
     } catch (e) {
-      if (idx === 10) {
+      if (idx === 59) {
         throw Error(`Could not get information of node in URL: ${urls[layer]}`)
       }
       console.log(`Node is possibly not READY yet, waiting for 10s to try again (${idx + 1}/60)`)
