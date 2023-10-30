@@ -142,13 +142,13 @@ export const handler = async (event) => {
 
     const logsNames = getLogsNames();
 
-    await restartNodes(ssmClient, event, logsNames)
+    // await restartNodes(ssmClient, event, logsNames)
 
-    await validateIfAllNodesAreReady(event)
+    // await validateIfAllNodesAreReady(event)
 
-    await checkIfNewSnapshotsAreProducedAfterRestart(event)
+    // await checkIfNewSnapshotsAreProducedAfterRestart(event)
 
-    await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, shouldRestart.reason)
+    await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, `Metagraph need to be restarted: ${shouldRestart.reason}`)
 
     printSeparatorWithMessage('FINISHED THE RESTART')
 

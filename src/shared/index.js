@@ -1,4 +1,3 @@
-import moment from 'moment';
 import axios from 'axios';
 import { SendCommandCommand, GetParameterCommand } from '@aws-sdk/client-ssm'
 import { LAYERS } from '../utils/types.js'
@@ -139,17 +138,21 @@ const getInformationToJoinNode = async (event, layer) => {
     [LAYERS.DATA_L1]: `http://${event.aws.ec2.instances.genesis.ip}:${ports.data_l1_public_port}/node/info`,
   }
 
-  for (let idx = 0; idx < 11; idx++) {
+  for (let idx = 0; idx < 60; idx++) {
     try {
       const response = await axios.get(urls[layer])
       const nodeId = response.data.id
+      const state = response.data.state
+      if (state !== 'Ready') {
+        throw Error('Node not ready yet')
+      }
 
       return { nodeId }
     } catch (e) {
-      if (idx === 10) {
+      if (idx === 59) {
         throw Error(`Could not get information of node in URL: ${urls[layer]}`)
       }
-      console.log(`Node is possibly not READY yet, waiting for 10s to try again (${idx + 1}/11)`)
+      console.log(`Node is possibly not READY yet, waiting for 10s to try again (${idx + 1}/60)`)
       await sleep(10000)
     }
   }
@@ -284,7 +287,7 @@ const getUnhealthyClusters = async (event) => {
       const response = await axios.get(url)
       const clusterInfo = response.data
       const isL0Url = url.includes(ports.metagraph_l0_public_port)
-      
+
       if (isL0Url) {
         const anyNodeReady = clusterInfo.some(node => {
           return node.state === 'Ready'
