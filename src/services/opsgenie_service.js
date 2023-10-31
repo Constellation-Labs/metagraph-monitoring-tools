@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios from 'axios'
 import { getSSMParameter, printSeparatorWithMessage } from '../shared/index.js'
 
 const OPSGENIE_ALERT_URL = "https://api.opsgenie.com/v2/alerts"

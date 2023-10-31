@@ -1,14 +1,14 @@
-import moment from 'moment';
-import axios from 'axios';
+import moment from 'moment'
+import axios from 'axios'
 import { SendCommandCommand, GetParameterCommand } from '@aws-sdk/client-ssm'
 import { LAYERS } from '../utils/types.js'
 
 const sleep = (ms) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 const getLastMetagraphInfo = async (event) => {
-  const { network, metagraph } = event;
+  const { network, metagraph } = event
   const beUrl = `https://be-${network.name}.constellationnetwork.io/currency/${metagraph.id}/snapshots/latest`
   try {
     const response = await axios.get(beUrl)
@@ -36,20 +36,20 @@ const sendCommand = async (ssmClient, commands, ec2InstancesIds) => {
     Parameters: {
       commands
     },
-  };
+  }
 
   try {
-    const commandResponse = await ssmClient.send(new SendCommandCommand(params));
-    console.log("Command sent successfully. Command ID:", commandResponse.Command.CommandId);
+    const commandResponse = await ssmClient.send(new SendCommandCommand(params))
+    console.log("Command sent successfully. Command ID:", commandResponse.Command.CommandId)
   } catch (error) {
-    console.error("Error sending command:", error);
+    console.error("Error sending command:", error)
   }
 }
 
 const getSSMParameter = async (ssmClient, parameterName) => {
   const getParameterCommand = new GetParameterCommand({
     Name: parameterName,
-  });
+  })
 
   const parameter = await ssmClient.send(getParameterCommand)
   return parameter.Parameter.Value
@@ -107,7 +107,7 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
   }
 
   const deletingCommands = await Promise.all(promises)
-  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc, ...curr], []);
+  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc, ...curr], [])
 
   const commands = [
     `cd ${file_system.base_metagraph_l0_directory}`,
@@ -210,7 +210,7 @@ const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
 }
 
 const checkIfAllNodesAreReady = async (event, layer) => {
-  printSeparatorWithMessage(`[${layer}] Checking nodes statuses`)
+  printSeparatorWithMessage(`[${layer}] Checking nodes states`)
   const { ports } = event.metagraph
   var layerPorts = {
     [LAYERS.L0]: ports.metagraph_l0_public_port,
@@ -239,20 +239,20 @@ const checkIfAllNodesAreReady = async (event, layer) => {
       }
 
       if (urls.length === 0) {
-        console.log(`[${layer}] All nodes are on ready status`)
+        console.log(`[${layer}] All nodes are on ready state`)
         printSeparatorWithMessage(`[${layer}] Finished`)
         return
       } else {
         console.log(`[${layer}] The following nodes are not ready yet: ${JSON.stringify(urls)}`)
-        console.log(`[${layer}] Not all nodes are on Ready status, trying again in 10s (${idx + 1}/20)`)
+        console.log(`[${layer}] Not all nodes are on Ready state, trying again in 10s (${idx + 1}/20)`)
         await sleep(10000)
       }
     } catch (e) {
       if (idx === 19) {
-        throw new Error(`[${layer}] Failing when restarting nodes. All nodes should be on READY status`)
+        throw new Error(`[${layer}] Failing when restarting nodes. All nodes should be on READY state`)
       }
 
-      console.log(`[${layer}] Not all nodes are on Ready status, trying again in 10s (${idx + 1}/20)`)
+      console.log(`[${layer}] Not all nodes are on Ready state, trying again in 10s (${idx + 1}/20)`)
       await sleep(10000)
     }
   }
@@ -324,6 +324,24 @@ const printSeparatorWithMessage = (message) => {
   console.log(`\n########################## ${message} ###############################\n`)
 }
 
+const checkIfRollbackFinished = async (event) => {
+  try {
+    const { metagraph_l0_public_port } = event.metagraph.ports
+    const url = `http://${event.aws.ec2.instances.genesis.ip}:${metagraph_l0_public_port}/node/info`
+
+    const response = await axios.get(url)
+    const nodeState = response.data.state
+    console.log(`Current state of genesis node: ${nodeState}`)
+    if (nodeState === 'Ready') {
+      return true
+    }
+    return false
+  } catch (e) {
+    console.log("Error when checking node url", e)
+    return false
+  }
+}
+
 export {
   sleep,
   getLastMetagraphInfo,
@@ -339,5 +357,6 @@ export {
   checkIfAllNodesAreReady,
   getAllEC2NodesInstances,
   deleteSnapshotNotSyncToGL0,
-  getUnhealthyClusters
+  getUnhealthyClusters,
+  checkIfRollbackFinished
 }
