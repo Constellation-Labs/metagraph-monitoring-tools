@@ -1,13 +1,13 @@
-import axios from 'axios';
+import axios from 'axios'
 import { SendCommandCommand, GetParameterCommand } from '@aws-sdk/client-ssm'
 import { LAYERS } from '../utils/types.js'
 
 const sleep = (ms) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 const getLastMetagraphInfo = async (event) => {
-  const { network, metagraph } = event;
+  const { network, metagraph } = event
   const beUrl = `https://be-${network.name}.constellationnetwork.io/currency/${metagraph.id}/snapshots/latest`
   try {
     const response = await axios.get(beUrl)
@@ -35,20 +35,20 @@ const sendCommand = async (ssmClient, commands, ec2InstancesIds) => {
     Parameters: {
       commands
     },
-  };
+  }
 
   try {
-    const commandResponse = await ssmClient.send(new SendCommandCommand(params));
-    console.log("Command sent successfully. Command ID:", commandResponse.Command.CommandId);
+    const commandResponse = await ssmClient.send(new SendCommandCommand(params))
+    console.log("Command sent successfully. Command ID:", commandResponse.Command.CommandId)
   } catch (error) {
-    console.error("Error sending command:", error);
+    console.error("Error sending command:", error)
   }
 }
 
 const getSSMParameter = async (ssmClient, parameterName) => {
   const getParameterCommand = new GetParameterCommand({
     Name: parameterName,
-  });
+  })
 
   const parameter = await ssmClient.send(getParameterCommand)
   return parameter.Parameter.Value
@@ -106,7 +106,7 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
   }
 
   const deletingCommands = await Promise.all(promises)
-  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc, ...curr], []);
+  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc, ...curr], [])
 
   const commands = [
     `cd ${file_system.base_metagraph_l0_directory}`,

@@ -1,12 +1,12 @@
-import AWS from 'aws-sdk';
-import moment from 'moment';
+import AWS from 'aws-sdk'
+import moment from 'moment'
 import {
   DATE_FORMAT,
   DYNAMO_RESTART_STATUS,
   DYNAMO_DB_TABLE_AUTO_RESTART
 } from '../../utils/types.js'
 
-const dynamodb = new AWS.DynamoDB();
+const dynamodb = new AWS.DynamoDB()
 
 const upsertMetagraphRestart = async (metagraphId, status, updatedAt) => {
   const item = {
@@ -17,9 +17,9 @@ const upsertMetagraphRestart = async (metagraphId, status, updatedAt) => {
       type: { S: 'metagraph' },
       updated_at: { S: updatedAt || moment.utc().format(DATE_FORMAT) },
     },
-  };
+  }
 
-  const metagraphRestart = await dynamodb.putItem(item).promise();
+  const metagraphRestart = await dynamodb.putItem(item).promise()
   const { error } = metagraphRestart.$response
   if (error) {
     throw error
@@ -34,11 +34,11 @@ const getMetagraphRestartOrCreateNew = async (metagraphId) => {
     Key: {
       id: { S: `${metagraphId}` },
     },
-  };
+  }
 
 
-  const metagraphRestart = await dynamodb.getItem(params).promise();
-  const { error, data } = metagraphRestart.$response;
+  const metagraphRestart = await dynamodb.getItem(params).promise()
+  const { error, data } = metagraphRestart.$response
 
   if (error) {
     console.error(`Error when trying to get information from dynamo: ${err}`)
@@ -68,17 +68,17 @@ const deleteMetagraphRestart = async (metagraphId) => {
     Key: {
       id: { S: `${metagraphId}` },
     },
-  };
+  }
 
 
-  const response = await dynamodb.deleteItem(params).promise();
+  const response = await dynamodb.deleteItem(params).promise()
   const { error, data } = response.$response
 
   if (error) {
-    console.error('Error deleting item: ', error);
+    console.error('Error deleting item: ', error)
     throw err
   } else {
-    console.log('Item deleted successfully: ', data);
+    console.log('Item deleted successfully: ', data)
   }
 
 }
