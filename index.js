@@ -15,8 +15,10 @@ import { restartL0Nodes } from './src/metagraph-l0/index.js'
 import { restartCurrencyL1Nodes } from './src/currency-l1/index.js'
 import { restartDataL1Nodes } from './src/data-l1/index.js'
 import { createMetagraphRestartSuccessfullyAlert, createMetagraphRestartFailureAlert } from './src/services/opsgenie_service.js'
-import { LAYERS, VALID_NETWORKS, RESTART_REASONS, DYNAMO_RESTART_STATUS } from './src/utils/types.js'
+import { LAYERS, VALID_NETWORKS, RESTART_REASONS, DYNAMO_RESTART_STATUS, DATE_FORMAT } from './src/utils/types.js'
 import { deleteMetagraphRestart, getMetagraphRestartOrCreateNew, upsertMetagraphRestart } from './src/external/aws/dynamo.js'
+
+const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 240
 
 const getLogsNames = () => {
   const now = moment.utc().format('YYY-MM-DD_HH-mm-ss')
@@ -110,7 +112,7 @@ const shouldRestartMetagraph = async (event, lastSnapshotTimestamp) => {
     return {
       should_restart: true,
       reason: RESTART_REASONS.STOP_PRODUCING_SNAPSHOTS
-    };
+    }
   }
 
   const unhealthyClusters = await getUnhealthyClusters(event)
@@ -146,7 +148,7 @@ const getCurrentMetagraphRestart = async (event) => {
 }
 
 export const handler = async (event) => {
-  const ssmClient = new SSMClient({ region: event.aws.region });
+  const ssmClient = new SSMClient({ region: event.aws.region })
 
   if (!VALID_NETWORKS.includes(event.network.name)) {
     throw Error(`Network should be one of the following: ${JSON.stringify(VALID_NETWORKS)}`)
@@ -161,26 +163,38 @@ export const handler = async (event) => {
       return {
         statusCode: 200,
         body: JSON.stringify('Metagraph healthy, ignoring restart!'),
-      };
+      }
     }
 
-    const currentMetagraphRestart = await getCurrentMetagraphRestart(event)
+    let currentMetagraphRestart = await getCurrentMetagraphRestart(event)
     if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.ROLLBACK_IN_PROGRESS) {
-      const lastRestartTimeDiff = moment.utc().diff(moment.utc(currentMetagraphRestart.updatedAt), 'hours')
-    
-      if (lastRestartTimeDiff > 3) {
-        throw new Error("The last restart of metagraph is taking more than 3 hours, please check the logs")
-      }
+      const lastRestartTimeDiff = moment.utc().diff(moment.utc(currentMetagraphRestart.updatedAt), 'minutes')
 
-      return {
-        statusCode: 200,
-        body: JSON.stringify('There is already one ROLLBACK_IN_PROGRESS for this metagraph, please wait this operation could take hours'),
-      };
+      if (lastRestartTimeDiff <= ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES) {
+        const timeoutTime = moment.utc(currentMetagraphRestart.updatedAt).add(ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES, 'minutes')
+
+        console.log(`Operation running since: ${currentMetagraphRestart.updatedAt} will timeout at ${timeoutTime.format(DATE_FORMAT)}`)
+        
+        return {
+          statusCode: 200,
+          body: JSON.stringify('There is already one ROLLBACK_IN_PROGRESS for this metagraph, please wait this operation could take hours'),
+        }
+      }
+      
+      await deleteMetagraphRestart(event.metagraph.id)
+      await createMetagraphRestartFailureAlert(
+        ssmClient,
+        event,
+        `The last restart of metagraph is taking more than ${ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES} minutes, please check the logs. Triggering a new restart...`,
+        shouldRestart ? shouldRestart.reason : 'Unknow reason'
+      )
+
+      currentMetagraphRestart = await getCurrentMetagraphRestart(event)
     }
 
     printSeparatorWithMessage('STARTING THE RESTART')
 
-    const logsNames = getLogsNames();
+    const logsNames = getLogsNames()
 
     await restartNodes(ssmClient, event, logsNames, currentMetagraphRestart)
 
@@ -199,10 +213,10 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       body: JSON.stringify('Finished cluster restart'),
-    };
+    }
 
   } catch (e) {
     await createMetagraphRestartFailureAlert(ssmClient, event, e.message, shouldRestart ? shouldRestart.reason : 'Unknow reason')
     throw e
   }
-};
+}
