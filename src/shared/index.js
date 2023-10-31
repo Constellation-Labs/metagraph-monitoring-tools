@@ -327,6 +327,24 @@ const printSeparatorWithMessage = (message) => {
   console.log(`\n########################## ${message} ###############################\n`)
 }
 
+const checkIfRollbackFinished = async (event) => {
+  try {
+    const { metagraph_l0_public_port } = event.metagraph.ports
+    const url = `http://${event.aws.ec2.instances.genesis.ip}:${metagraph_l0_public_port}/node/info`
+
+    const response = await axios.get(url)
+    const nodeState = response.data.state
+    console.log(`Current state of genesis node: ${nodeState}`)
+    if (nodeState === 'Ready') {
+      return true
+    }
+    return false
+  } catch (e) {
+    console.log("Error when checking node url", e)
+    return false
+  }
+}
+
 export {
   sleep,
   getLastMetagraphInfo,
@@ -342,5 +360,6 @@ export {
   checkIfAllNodesAreReady,
   getAllEC2NodesInstances,
   deleteSnapshotNotSyncToGL0,
-  getUnhealthyClusters
+  getUnhealthyClusters,
+  checkIfRollbackFinished
 }

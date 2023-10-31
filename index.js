@@ -8,13 +8,15 @@ import {
   sleep,
   getAllEC2NodesInstances,
   deleteSnapshotNotSyncToGL0,
-  getUnhealthyClusters
+  getUnhealthyClusters,
+  checkIfRollbackFinished
 } from './src/shared/index.js'
 import { restartL0Nodes } from './src/metagraph-l0/index.js'
 import { restartCurrencyL1Nodes } from './src/currency-l1/index.js'
 import { restartDataL1Nodes } from './src/data-l1/index.js'
 import { createMetagraphRestartSuccessfullyAlert, createMetagraphRestartFailureAlert } from './src/services/opsgenie_service.js'
-import { LAYERS, VALID_NETWORKS, RESTART_REASONS } from './src/utils/types.js'
+import { LAYERS, VALID_NETWORKS, RESTART_REASONS, DYNAMO_RESTART_STATUS } from './src/utils/types.js'
+import { deleteMetagraphRestart, getMetagraphRestartOrCreateNew, upsertMetagraphRestart } from './src/external/aws/dynamo.js'
 
 const getLogsNames = () => {
   const now = moment.utc().format('YYY-MM-DD_HH-mm-ss')
@@ -30,20 +32,27 @@ const getLogsNames = () => {
   }
 }
 
-const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }) => {
+const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }, currentMetagraphRestart) => {
   const allEC2NodesIntances = getAllEC2NodesInstances(event)
 
-  printSeparatorWithMessage('Killing current processes on nodes')
-  await killCurrentProcesses(ssmClient, event, allEC2NodesIntances)
-  printSeparatorWithMessage('Finished')
+  if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.NEW) {
+    printSeparatorWithMessage('Killing current processes on nodes')
+    await killCurrentProcesses(ssmClient, event, allEC2NodesIntances)
+    printSeparatorWithMessage('Finished')
 
-  printSeparatorWithMessage('Deleting snapshots not sent to GL0 on Metagraph')
-  await deleteSnapshotNotSyncToGL0(ssmClient, event, allEC2NodesIntances)
-  printSeparatorWithMessage('Finished')
+    printSeparatorWithMessage('Deleting snapshots not sent to GL0 on Metagraph')
+    await deleteSnapshotNotSyncToGL0(ssmClient, event, allEC2NodesIntances)
+    printSeparatorWithMessage('Finished')
+  }
 
   printSeparatorWithMessage('METAGRAPH L0')
-  const nodeId = await restartL0Nodes(ssmClient, event, l0LogName)
+  const nodeId = await restartL0Nodes(ssmClient, event, l0LogName, currentMetagraphRestart)
   printSeparatorWithMessage('Finished')
+
+  if (!nodeId || currentMetagraphRestart.status !== DYNAMO_RESTART_STATUS.READY) {
+    console.log("Genesis node still not ready, skipping")
+    return
+  }
 
   if (event.metagraph.include_currency_l1_layer) {
     printSeparatorWithMessage('CURRENCY L1')
@@ -119,6 +128,23 @@ const shouldRestartMetagraph = async (event, lastSnapshotTimestamp) => {
   }
 }
 
+const getCurrentMetagraphRestart = async (event) => {
+  printSeparatorWithMessage('GETTING CURRENT METAGRAPH RESTART')
+  const rollbackFinished = await checkIfRollbackFinished(event)
+
+  let currentMetagraphRestart
+  if (rollbackFinished) {
+    currentMetagraphRestart = await upsertMetagraphRestart(event.metagraph.id, DYNAMO_RESTART_STATUS.READY)
+  } else {
+    currentMetagraphRestart = await getMetagraphRestartOrCreateNew(event.metagraph.id)
+  }
+
+  console.log("Current Metagraph Restart:", JSON.stringify(currentMetagraphRestart))
+  printSeparatorWithMessage('Finished')
+
+  return currentMetagraphRestart
+}
+
 export const handler = async (event) => {
   const ssmClient = new SSMClient({ region: event.aws.region });
 
@@ -138,17 +164,35 @@ export const handler = async (event) => {
       };
     }
 
+    const currentMetagraphRestart = await getCurrentMetagraphRestart(event)
+    if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.ROLLBACK_IN_PROGRESS) {
+      const lastRestartTimeDiff = moment.utc().diff(moment.utc(currentMetagraphRestart.updatedAt), 'hours')
+    
+      if (lastRestartTimeDiff > 3) {
+        throw new Error("The last restart of metagraph is taking more than 3 hours, please check the logs")
+      }
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify('There is already one ROLLBACK_IN_PROGRESS for this metagraph, please wait this operation could take hours'),
+      };
+    }
+
     printSeparatorWithMessage('STARTING THE RESTART')
 
     const logsNames = getLogsNames();
 
-    // await restartNodes(ssmClient, event, logsNames)
+    await restartNodes(ssmClient, event, logsNames, currentMetagraphRestart)
 
-    // await validateIfAllNodesAreReady(event)
+    if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.READY) {
+      await validateIfAllNodesAreReady(event)
 
-    // await checkIfNewSnapshotsAreProducedAfterRestart(event)
+      await checkIfNewSnapshotsAreProducedAfterRestart(event)
 
-    await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, `Metagraph need to be restarted: ${shouldRestart.reason}`)
+      await createMetagraphRestartSuccessfullyAlert(ssmClient, event, logsNames, `Metagraph need to be restarted: ${shouldRestart.reason}`)
+
+      await deleteMetagraphRestart(event.metagraph.id)
+    }
 
     printSeparatorWithMessage('FINISHED THE RESTART')
 
