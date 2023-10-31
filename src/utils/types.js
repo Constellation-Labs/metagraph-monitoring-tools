@@ -11,10 +11,10 @@ const DATE_FORMAT = "YYYY-MM-DDTHH:mm:ssZ"
 const RESTART_REASONS = {
   STOP_PRODUCING_SNAPSHOTS: "Metagraph stop producing snapshots",
   FORCE_METAGRAPH_RESTART: "Force metagraph restart provided",
-  UNHEALTHY_CLUSTER: "One of the clusters are unhealthy (less than 3 nodes or nodes with not Ready status)"
+  UNHEALTHY_CLUSTER: "One of the clusters are unhealthy (less than 3 nodes or nodes with not Ready state)"
 }
 
-const DYNAMO_RESTART_STATUS = {
+const DYNAMO_RESTART_STATE = {
   NEW: 'NEW',
   ROLLBACK_IN_PROGRESS: "ROLLBACK IN PROGRESS",
   READY: 'READY'
@@ -27,6 +27,6 @@ export {
   VALID_NETWORKS,
   DATE_FORMAT,
   RESTART_REASONS,
-  DYNAMO_RESTART_STATUS,
+  DYNAMO_RESTART_STATE,
   DYNAMO_DB_TABLE_AUTO_RESTART
 }

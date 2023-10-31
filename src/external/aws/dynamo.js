@@ -2,18 +2,18 @@ import AWS from 'aws-sdk'
 import moment from 'moment'
 import {
   DATE_FORMAT,
-  DYNAMO_RESTART_STATUS,
+  DYNAMO_RESTART_STATE,
   DYNAMO_DB_TABLE_AUTO_RESTART
 } from '../../utils/types.js'
 
 const dynamodb = new AWS.DynamoDB()
 
-const upsertMetagraphRestart = async (metagraphId, status, updatedAt) => {
+const upsertMetagraphRestart = async (metagraphId, state, updatedAt) => {
   const item = {
     TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Item: {
       id: { S: metagraphId },
-      status: { S: status },
+      state: { S: state },
       type: { S: 'metagraph' },
       updated_at: { S: updatedAt || moment.utc().format(DATE_FORMAT) },
     },
@@ -47,16 +47,16 @@ const getMetagraphRestartOrCreateNew = async (metagraphId) => {
 
   const { Item } = data
   if (!Item) {
-    console.log("Could not get status, creating new restart of metagraph...")
+    console.log("Could not get metagraph restart, creating new restart of metagraph...")
     const updatedAt = moment.utc().format(DATE_FORMAT)
 
-    return upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATUS.NEW, updatedAt)
+    return upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.NEW, updatedAt)
   }
 
-  const status = Item.status.S
+  const state = Item.state.S
   const updatedAt = Item.updated_at.S
   return {
-    status,
+    state,
     updatedAt
   }
 

@@ -9,7 +9,7 @@ import {
   saveLogs,
   getAllEC2NodesInstances
 } from '../shared/index.js'
-import { DYNAMO_RESTART_STATUS, LAYERS } from '../utils/types.js'
+import { DYNAMO_RESTART_STATE, LAYERS } from '../utils/types.js'
 
 const startRollbackFirstNodeL0 = async (ssmClient, event, ec2InstancesIds) => {
   const l0Keys = await getKeys(ssmClient, event.aws.ec2.instances.genesis.id, LAYERS.L0)
@@ -90,19 +90,19 @@ const startValidatorNodeL0 = async (ssmClient, event, keys, instanceIp, ec2Insta
 }
 
 const restartL0Nodes = async (ssmClient, event, logName, currentMetagraphRestart) => {
-  if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.NEW) {
+  if (currentMetagraphRestart.state === DYNAMO_RESTART_STATE.NEW) {
     const allEC2NodesIntances = getAllEC2NodesInstances(event)
     await saveLogs(ssmClient, event, logName, LAYERS.L0, allEC2NodesIntances)
 
     printSeparatorWithMessage('Starting rollback genesis l0 node')
     await startRollbackFirstNodeL0(ssmClient, event, [event.aws.ec2.instances.genesis.id])
     
-    console.log("Updating status to ROLLBACK_IN_PROGRESS")
-    currentMetagraphRestart = await upsertMetagraphRestart(event.metagraph.id, DYNAMO_RESTART_STATUS.ROLLBACK_IN_PROGRESS)
+    console.log("Updating state to ROLLBACK_IN_PROGRESS")
+    currentMetagraphRestart = await upsertMetagraphRestart(event.metagraph.id, DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS)
     printSeparatorWithMessage('Finished')
   }
 
-  if (currentMetagraphRestart.status !== DYNAMO_RESTART_STATUS.READY) {
+  if (currentMetagraphRestart.state !== DYNAMO_RESTART_STATE.READY) {
     return null
   }
 
