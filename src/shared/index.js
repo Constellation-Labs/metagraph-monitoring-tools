@@ -213,7 +213,7 @@ const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
 }
 
 const checkIfAllNodesAreReady = async (event, layer) => {
-  printSeparatorWithMessage(`[${layer}] Checking nodes statuses`)
+  printSeparatorWithMessage(`[${layer}] Checking nodes states`)
   const { ports } = event.metagraph
   var layerPorts = {
     [LAYERS.L0]: ports.metagraph_l0_public_port,
@@ -242,20 +242,20 @@ const checkIfAllNodesAreReady = async (event, layer) => {
       }
 
       if (urls.length === 0) {
-        console.log(`[${layer}] All nodes are on ready status`)
+        console.log(`[${layer}] All nodes are on ready state`)
         printSeparatorWithMessage(`[${layer}] Finished`)
         return
       } else {
         console.log(`[${layer}] The following nodes are not ready yet: ${JSON.stringify(urls)}`)
-        console.log(`[${layer}] Not all nodes are on Ready status, trying again in 10s (${idx + 1}/20)`)
+        console.log(`[${layer}] Not all nodes are on Ready state, trying again in 10s (${idx + 1}/20)`)
         await sleep(10000)
       }
     } catch (e) {
       if (idx === 19) {
-        throw new Error(`[${layer}] Failing when restarting nodes. All nodes should be on READY status`)
+        throw new Error(`[${layer}] Failing when restarting nodes. All nodes should be on READY state`)
       }
 
-      console.log(`[${layer}] Not all nodes are on Ready status, trying again in 10s (${idx + 1}/20)`)
+      console.log(`[${layer}] Not all nodes are on Ready state, trying again in 10s (${idx + 1}/20)`)
       await sleep(10000)
     }
   }

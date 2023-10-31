@@ -15,7 +15,7 @@ import { restartL0Nodes } from './src/metagraph-l0/index.js'
 import { restartCurrencyL1Nodes } from './src/currency-l1/index.js'
 import { restartDataL1Nodes } from './src/data-l1/index.js'
 import { createMetagraphRestartSuccessfullyAlert, createMetagraphRestartFailureAlert } from './src/services/opsgenie_service.js'
-import { LAYERS, VALID_NETWORKS, RESTART_REASONS, DYNAMO_RESTART_STATUS, DATE_FORMAT } from './src/utils/types.js'
+import { LAYERS, VALID_NETWORKS, RESTART_REASONS, DYNAMO_RESTART_STATE, DATE_FORMAT } from './src/utils/types.js'
 import { deleteMetagraphRestart, getMetagraphRestartOrCreateNew, upsertMetagraphRestart } from './src/external/aws/dynamo.js'
 
 const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 240
@@ -37,7 +37,7 @@ const getLogsNames = () => {
 const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }, currentMetagraphRestart) => {
   const allEC2NodesIntances = getAllEC2NodesInstances(event)
 
-  if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.NEW) {
+  if (currentMetagraphRestart.state === DYNAMO_RESTART_STATE.NEW) {
     printSeparatorWithMessage('Killing current processes on nodes')
     await killCurrentProcesses(ssmClient, event, allEC2NodesIntances)
     printSeparatorWithMessage('Finished')
@@ -51,7 +51,7 @@ const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogNam
   const nodeId = await restartL0Nodes(ssmClient, event, l0LogName, currentMetagraphRestart)
   printSeparatorWithMessage('Finished')
 
-  if (!nodeId || currentMetagraphRestart.status !== DYNAMO_RESTART_STATUS.READY) {
+  if (!nodeId || currentMetagraphRestart.state !== DYNAMO_RESTART_STATE.READY) {
     console.log("Genesis node still not ready, skipping")
     return
   }
@@ -132,13 +132,15 @@ const shouldRestartMetagraph = async (event, lastSnapshotTimestamp) => {
 
 const getCurrentMetagraphRestart = async (event) => {
   printSeparatorWithMessage('GETTING CURRENT METAGRAPH RESTART')
-  const rollbackFinished = await checkIfRollbackFinished(event)
 
-  let currentMetagraphRestart
+  let currentMetagraphRestart = await getMetagraphRestartOrCreateNew(event.metagraph.id)
+  if (currentMetagraphRestart.state === DYNAMO_RESTART_STATE.NEW) {
+    return currentMetagraphRestart
+  }
+
+  const rollbackFinished = await checkIfRollbackFinished(event)
   if (rollbackFinished) {
-    currentMetagraphRestart = await upsertMetagraphRestart(event.metagraph.id, DYNAMO_RESTART_STATUS.READY)
-  } else {
-    currentMetagraphRestart = await getMetagraphRestartOrCreateNew(event.metagraph.id)
+    currentMetagraphRestart = await upsertMetagraphRestart(event.metagraph.id, DYNAMO_RESTART_STATE.READY)
   }
 
   console.log("Current Metagraph Restart:", JSON.stringify(currentMetagraphRestart))
@@ -167,20 +169,20 @@ export const handler = async (event) => {
     }
 
     let currentMetagraphRestart = await getCurrentMetagraphRestart(event)
-    if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.ROLLBACK_IN_PROGRESS) {
+    if (currentMetagraphRestart.state === DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS) {
       const lastRestartTimeDiff = moment.utc().diff(moment.utc(currentMetagraphRestart.updatedAt), 'minutes')
 
       if (lastRestartTimeDiff <= ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES) {
         const timeoutTime = moment.utc(currentMetagraphRestart.updatedAt).add(ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES, 'minutes')
 
         console.log(`Operation running since: ${currentMetagraphRestart.updatedAt} will timeout at ${timeoutTime.format(DATE_FORMAT)}`)
-        
+
         return {
           statusCode: 200,
           body: JSON.stringify('There is already one ROLLBACK_IN_PROGRESS for this metagraph, please wait this operation could take hours'),
         }
       }
-      
+
       await deleteMetagraphRestart(event.metagraph.id)
       await createMetagraphRestartFailureAlert(
         ssmClient,
@@ -198,7 +200,7 @@ export const handler = async (event) => {
 
     await restartNodes(ssmClient, event, logsNames, currentMetagraphRestart)
 
-    if (currentMetagraphRestart.status === DYNAMO_RESTART_STATUS.READY) {
+    if (currentMetagraphRestart.state === DYNAMO_RESTART_STATE.READY) {
       await validateIfAllNodesAreReady(event)
 
       await checkIfNewSnapshotsAreProducedAfterRestart(event)
