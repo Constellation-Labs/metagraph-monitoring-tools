@@ -1,5 +1,5 @@
 aws dynamodb create-table \
-  --table-name metagraph_auto_restart \
+  --table-name auto_restart \
   --attribute-definitions \
     AttributeName=id,AttributeType=S \
   --key-schema \

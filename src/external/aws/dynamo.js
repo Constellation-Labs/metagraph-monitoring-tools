@@ -3,17 +3,18 @@ import moment from 'moment';
 import {
   DATE_FORMAT,
   DYNAMO_RESTART_STATUS,
-  DYNAMO_DB_TABLE_METAGRAPH_AUTO_RESTART
+  DYNAMO_DB_TABLE_AUTO_RESTART
 } from '../../utils/types.js'
 
 const dynamodb = new AWS.DynamoDB();
 
 const upsertMetagraphRestart = async (metagraphId, status, updatedAt) => {
   const item = {
-    TableName: DYNAMO_DB_TABLE_METAGRAPH_AUTO_RESTART,
+    TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Item: {
       id: { S: metagraphId },
       status: { S: status },
+      type: { S: 'metagraph' },
       updated_at: { S: updatedAt || moment.utc().format(DATE_FORMAT) },
     },
   };
@@ -29,7 +30,7 @@ const upsertMetagraphRestart = async (metagraphId, status, updatedAt) => {
 
 const getMetagraphRestartOrCreateNew = async (metagraphId) => {
   const params = {
-    TableName: DYNAMO_DB_TABLE_METAGRAPH_AUTO_RESTART,
+    TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Key: {
       id: { S: `${metagraphId}` },
     },
@@ -63,7 +64,7 @@ const getMetagraphRestartOrCreateNew = async (metagraphId) => {
 
 const deleteMetagraphRestart = async (metagraphId) => {
   const params = {
-    TableName: DYNAMO_DB_TABLE_METAGRAPH_AUTO_RESTART,
+    TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Key: {
       id: { S: `${metagraphId}` },
     },
