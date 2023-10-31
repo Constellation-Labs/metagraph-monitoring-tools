@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getSSMParameter, printSeparatorWithMessage } from '../shared/index.js'
+import { VALID_NETWORKS_TAGS_OPSGENIE } from '../utils/types.js'
 
 const OPSGENIE_ALERT_URL = "https://api.opsgenie.com/v2/alerts"
 
@@ -28,7 +29,7 @@ const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
   const { genesis, validators } = event.aws.ec2.instances
 
   return {
-    message: `${metagraphName} Metagraph Restarted`,
+    message: `${metagraphName} Metagraph Restarted Successfully`,
     description: `
     The ${metagraphName} Metagraph restarted succesfully on ${networkName}.
     Restart reason: ${restartReason}
@@ -63,14 +64,14 @@ const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
     `,
     alias: `${id}_successfully_restarted`,
     actions: ["Metagraph", "Restart"],
-    tags: ["Metagraph", "Restart", "Successfully"],
+    tags: ["Metagraph", "Restart", "Successfully", VALID_NETWORKS_TAGS_OPSGENIE[networkName]],
     details: {
       metagraphId: id,
       network: networkName,
       metagraphName: metagraphName
     },
     entity: "Metagraph",
-    priority: "P3"
+    priority: "P4"
   }
 }
 
@@ -80,9 +81,9 @@ const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
   const { genesis, validators } = event.aws.ec2.instances
 
   return {
-    message: `${metagraphName} Metagraph Failed To Restarted`,
+    message: `${metagraphName} Metagraph Failed to Restart`,
     description: `
-    The ${metagraphName} Metagraph failed to restarted on ${networkName}.
+    The ${metagraphName} Metagraph failed to restart on ${networkName}.
     Restart reason: ${restartReason}
     Error message returned: ${errorMessage}
     
@@ -111,7 +112,7 @@ const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
     `,
     actions: ["Metagraph", "Restart"],
     alias: `${id}_failure_restarted`,
-    tags: ["Metagraph", "Restart", "Failure"],
+    tags: ["Metagraph", "Restart", "Failure", VALID_NETWORKS_TAGS_OPSGENIE[networkName]],
     details: {
       metagraphId: id,
       network: networkName,
