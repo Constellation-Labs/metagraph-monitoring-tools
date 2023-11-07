@@ -1,19 +1,19 @@
-name: Deploy Dor AWS
+name: Deploy Bitforex Metagraph - Intnet
 
 on:
   push:
     branches:
-      - "deploy/dor-aws"
+      - "deploy/bitforex-metagraph-intnet"
 jobs:
   deploy-dor-aws:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - name: Deploy DOR AWS
+      - name: Deploy Bitforex Metagraph - Intnet
         uses: "./.github/templates/deploy"
         with:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_TESTNET_INTEGRATIONNET }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_TESTNET_INTEGRATIONNET }}
           AWS_REGION: ${{ secrets.AWS_REGION_TESTNET_INTEGRATIONNET }}
-          AWS_LAMBDA_FUNCTION_NAME: MetagraphMonitor
+          AWS_LAMBDA_FUNCTION_NAME: IntegrationNetCurrencyDemoMonitor
