@@ -35,7 +35,7 @@
     "gl0_node_port": "9000"
   },
   "aws": {
-    "region": "us-west-2",
+    "region": "us-west-1",
     "ec2": {
       "instances": {
         "genesis": {
