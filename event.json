@@ -1,7 +1,7 @@
 {
   "metagraph": {
-    "id": ":metagraph_id",
-    "name": ":metagraph_name",
+    "id": "DAG5kfY9GoHF1CYaY8tuRJxmB3JSzAEARJEAkA2C",
+    "name": "DOR",
     "include_currency_l1_layer": true,
     "include_data_l1_layer": true,
     "file_system": {
@@ -21,35 +21,38 @@
       "data_l1_cli_port": 9002
     },
     "required_env_variables": {
-      "cl_app_env": "testnet",
+      "cl_app_env": "integrationnet",
       "cl_collateral": 0
     },
-    "additional_metagraph_l0_env_variables": [],
+    "additional_metagraph_l0_env_variables": [
+      "METAGRAPH_L0_NODE_URL=http://54.218.46.24:7000/cluster/info",
+      "DATA_L1_NODE_URL=http://54.218.46.24:9000/cluster/info"
+    ],
     "additional_currency_l1_env_variables": [],
     "additional_data_l1_env_variables": []
   },
   "network": {
-    "name": "integrationnet|testnet|mainnet",
-    "gl0_node_ip": ":gl0_node_ip",
-    "gl0_node_id": ":gl0_node_id",
-    "gl0_node_port": ":gl0_node_port"
+    "name": "integrationnet",
+    "gl0_node_ip": "52.53.216.201",
+    "gl0_node_id": "3458a688925a4bd89f2ac2c695362e44d2e0c2903bdbb41b341a4d39283b22d8c85b487bd33cc5d36dbe5e31b5b00a10a6eab802718ead4ed7192ade5a5d1941",
+    "gl0_node_port": "9000"
   },
   "aws": {
-    "region": ":aws_region",
+    "region": "us-west-2",
     "ec2": {
       "instances": {
         "genesis": {
-          "id": ":genesis_node_instance_id",
-          "ip": "genesis_node_instance_ip"
+          "id": "i-03b3276264675e661",
+          "ip": "54.218.46.24"
         },
         "validators": [
           {
-            "id": ":validator_1_node_instance_id",
-            "ip": ":validator_1_node_instance_ip"
+            "id": "i-074aabc2ebd03819b",
+            "ip": "34.212.237.118"
           },
           {
-            "id": ":validator_2_node_instance_id",
-            "ip": ":validator_2_node_instance_ip"
+            "id": "i-0cc80924a8124f3e6",
+            "ip": "34.219.123.201"
           }
         ]
       }
