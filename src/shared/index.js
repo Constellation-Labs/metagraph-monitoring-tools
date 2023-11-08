@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { SendCommandCommand, GetParameterCommand } from '@aws-sdk/client-ssm'
-import { LAYERS } from '../utils/types.js'
+import { LAYERS, NETWORK_NODES } from '../utils/types.js'
 
 const sleep = (ms) => {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -26,6 +26,69 @@ const getLastMetagraphInfo = async (event) => {
     console.log(e)
     throw Error(`Error when searching for metagraph on: ${beUrl}`, e)
   }
+}
+
+const getLatestMetagraphOfNetwork = async (networkName) => {
+  const beUrl = `https://be-${networkName}.constellationnetwork.io/global-snapshots/latest`
+  try {
+    const response = await axios.get(beUrl)
+    const lastSnapshotOrdinal = response.data.data.ordinal
+    const lastSnapshotHash = response.data.data.hash
+
+    console.log(`LAST SNAPSHOT OF NETWORK: ${networkName}. Ordinal: ${lastSnapshotOrdinal}. Hash: ${lastSnapshotHash}`)
+
+    return {
+      lastSnapshotOrdinal,
+      lastSnapshotHash
+    }
+  } catch (e) {
+    console.log(e)
+    throw Error(`Error when searching for snapshot on: ${beUrl}`, e)
+  }
+}
+
+const checkIfSnapshotExistsOnNode = async (nodeIp, nodePort, snapshotHash) => {
+  const nodeUrl = `http://${nodeIp}:${nodePort}/global-snapshots/${snapshotHash}`
+  try {
+    await axios.get(nodeUrl)
+    console.log(`Snapshot exists on node: ${nodeIp}`)
+    return true
+  } catch (e) {
+    console.log(`Snapshot does not exists on node: ${nodeIp}`)
+    return false
+  }
+}
+
+const getReferenceSourceNode = async (event) => {
+  const { network } = event
+  const networkName = network.name
+
+  console.log(`Starting to get reference source node for network: ${networkName}`)
+  
+  const networkNodes = NETWORK_NODES[networkName]
+  if (!networkNodes || Object.keys(networkNodes).length === 0) {
+    throw Error(`Could not find nodes of network: ${networkName}`)
+  }
+
+  const { node_1, node_2, node_3 } = networkNodes
+  const { lastSnapshotHash } = await getLatestMetagraphOfNetwork(networkName)
+
+  const snapshotExistsOnNode1 = await checkIfSnapshotExistsOnNode(node_1.ip, node_1.port, lastSnapshotHash)
+  if(snapshotExistsOnNode1){
+    return node_1
+  }
+
+  const snapshotExistsOnNode2 = await checkIfSnapshotExistsOnNode(node_2.ip, node_2.port, lastSnapshotHash)
+  if(snapshotExistsOnNode2){
+    return node_2
+  }
+
+  const snapshotExistsOnNode3 = await checkIfSnapshotExistsOnNode(node_3.ip, node_3.port, lastSnapshotHash)
+  if(snapshotExistsOnNode3){
+    return node_3
+  }
+
+  return null
 }
 
 const sendCommand = async (ssmClient, commands, ec2InstancesIds) => {
@@ -287,7 +350,7 @@ const getUnhealthyClusters = async (event) => {
       const response = await axios.get(url)
       const clusterInfo = response.data
       const isL0Url = url.includes(ports.metagraph_l0_public_port)
-      
+
       if (isL0Url) {
         const anyNodeReady = clusterInfo.some(node => {
           return node.state === 'Ready'
@@ -361,5 +424,6 @@ export {
   getAllEC2NodesInstances,
   deleteSnapshotNotSyncToGL0,
   getUnhealthyClusters,
-  checkIfRollbackFinished
+  checkIfRollbackFinished,
+  getReferenceSourceNode
 }

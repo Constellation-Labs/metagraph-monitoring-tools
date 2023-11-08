@@ -10,11 +10,10 @@ import {
 } from '../shared/index.js'
 import { LAYERS } from '../utils/types.js'
 
-const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2InstancesIds) => {
+const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2InstancesIds, referenceSourceNode) => {
   const dl1Keys = await getKeys(ssmClient, event.aws.ec2.instances.genesis.id, 'dl1')
 
   const { ports } = event.metagraph
-  const { gl0_node_ip, gl0_node_id, gl0_node_port } = event.network
   const {
     id,
     required_env_variables,
@@ -31,9 +30,9 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
     `export CL_P2P_HTTP_PORT=${ports.data_l1_p2p_port}`,
     `export CL_CLI_HTTP_PORT=${ports.data_l1_cli_port}`,
 
-    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${gl0_node_ip}`,
-    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${gl0_node_port}`,
-    `export CL_GLOBAL_L0_PEER_ID=${gl0_node_id}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${referenceSourceNode.ip}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${referenceSourceNode.port}`,
+    `export CL_GLOBAL_L0_PEER_ID=${referenceSourceNode.id}`,
 
     `export CL_L0_PEER_HTTP_HOST=${event.aws.ec2.instances.genesis.ip}`,
     `export CL_L0_PEER_HTTP_PORT=${ports.metagraph_l0_public_port}`,
@@ -57,9 +56,8 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
-const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceIp, ec2InstancesIds) => {
+const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceIp, ec2InstancesIds, referenceSourceNode) => {
   const { ports } = event.metagraph
-  const { gl0_node_ip, gl0_node_id, gl0_node_port } = event.network
   const {
     id,
     required_env_variables,
@@ -72,9 +70,9 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
     `export CL_P2P_HTTP_PORT=${ports.data_l1_p2p_port}`,
     `export CL_CLI_HTTP_PORT=${ports.data_l1_cli_port}`,
 
-    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${gl0_node_ip}`,
-    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${gl0_node_port}`,
-    `export CL_GLOBAL_L0_PEER_ID=${gl0_node_id}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_HOST=${referenceSourceNode.ip}`,
+    `export CL_GLOBAL_L0_PEER_HTTP_PORT=${referenceSourceNode.port}`,
+    `export CL_GLOBAL_L0_PEER_ID=${referenceSourceNode.id}`,
 
     `export CL_L0_PEER_HTTP_HOST=${event.aws.ec2.instances.genesis.ip}`,
     `export CL_L0_PEER_HTTP_PORT=${ports.metagraph_l0_public_port}`,
@@ -98,12 +96,12 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
   await sendCommand(ssmClient, [...keys, ...commands], ec2InstancesIds)
 }
 
-const restartDataL1Nodes = async (ssmClient, event, metagraphL0NodeId, logName) => {
+const restartDataL1Nodes = async (ssmClient, event, metagraphL0NodeId, logName, referenceSourceNode) => {
   const allEC2NodesIntances = getAllEC2NodesInstances(event)
   await saveLogs(ssmClient, event, logName, LAYERS.DATA_L1, allEC2NodesIntances)
 
   printSeparatorWithMessage('Starting initial validator data l1 node')
-  await startInitialValidatorNodeL1(ssmClient, event, metagraphL0NodeId, [event.aws.ec2.instances.genesis.id])
+  await startInitialValidatorNodeL1(ssmClient, event, metagraphL0NodeId, [event.aws.ec2.instances.genesis.id], referenceSourceNode)
   printSeparatorWithMessage('Finished')
 
   printSeparatorWithMessage('Starting validators data L1 nodes')
@@ -120,7 +118,8 @@ const restartDataL1Nodes = async (ssmClient, event, metagraphL0NodeId, logName) 
         `export CL_PASSWORD="${validator1Keys.password}"`
       ],
       validator.ip,
-      [validator.id]
+      [validator.id],
+      referenceSourceNode
     )
   }
   printSeparatorWithMessage('Finished')
