@@ -9,7 +9,8 @@ import {
   getAllEC2NodesInstances,
   deleteSnapshotNotSyncToGL0,
   getUnhealthyClusters,
-  checkIfRollbackFinished
+  checkIfRollbackFinished,
+  getReferenceSourceNode
 } from './src/shared/index.js'
 import { restartL0Nodes } from './src/metagraph-l0/index.js'
 import { restartCurrencyL1Nodes } from './src/currency-l1/index.js'
@@ -37,6 +38,12 @@ const getLogsNames = () => {
 const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }, currentMetagraphRestart) => {
   const allEC2NodesIntances = getAllEC2NodesInstances(event)
 
+  const referenceSourceNode = await getReferenceSourceNode(event)
+  if(!referenceSourceNode) {
+    throw Error(`Could not get reference node to network ${event.network.name}`)
+  }
+  console.log(`RefrenceSourceNode found: ${JSON.stringify(referenceSourceNode)}`)
+  
   if (currentMetagraphRestart.state === DYNAMO_RESTART_STATE.NEW) {
     printSeparatorWithMessage('Killing current processes on nodes')
     await killCurrentProcesses(ssmClient, event, allEC2NodesIntances)
@@ -48,7 +55,7 @@ const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogNam
   }
 
   printSeparatorWithMessage('METAGRAPH L0')
-  const nodeId = await restartL0Nodes(ssmClient, event, l0LogName, currentMetagraphRestart)
+  const nodeId = await restartL0Nodes(ssmClient, event, l0LogName, currentMetagraphRestart, referenceSourceNode)
   printSeparatorWithMessage('Finished')
 
   if (!nodeId || currentMetagraphRestart.state !== DYNAMO_RESTART_STATE.READY) {
@@ -58,13 +65,13 @@ const restartNodes = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogNam
 
   if (event.metagraph.include_currency_l1_layer) {
     printSeparatorWithMessage('CURRENCY L1')
-    await restartCurrencyL1Nodes(ssmClient, event, nodeId, cl1LogName)
+    await restartCurrencyL1Nodes(ssmClient, event, nodeId, cl1LogName, referenceSourceNode)
     printSeparatorWithMessage('Finished')
   }
 
   if (event.metagraph.include_data_l1_layer) {
     printSeparatorWithMessage('DATA L1')
-    await restartDataL1Nodes(ssmClient, event, nodeId, dl1LogName)
+    await restartDataL1Nodes(ssmClient, event, nodeId, dl1LogName, referenceSourceNode)
     printSeparatorWithMessage('Finished')
   }
 }
