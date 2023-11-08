@@ -100,7 +100,8 @@ const checkIfNewSnapshotsAreProducedAfterRestart = async (event) => {
 
 const shouldRestartMetagraph = async (event, lastSnapshotTimestamp) => {
   if (event.force_metagraph_restart) {
-    console.log('Force metagraph restart provided, restarting')
+    console.log('Force metagraph restart provided. Deleting dynamo row and restarting')
+    await deleteMetagraphRestart(event.metagraph.id)
     return {
       should_restart: true,
       reason: RESTART_REASONS.FORCE_METAGRAPH_RESTART
