@@ -62,22 +62,21 @@ const NETWORK_NODES = {
       id: "46daea11ca239cb8c0c8cdeb27db9dbe9c03744908a8a389a60d14df2ddde409260a93334d74957331eec1af323f458b12b3a6c3b8e05885608aae7e3a77eac7"
     },
   },
-  //DOR METAGRAPH GL0s
   mainnet: {
     node_1: {
-      ip: "54.191.143.91",
+      ip: "52.53.46.33",
       port: 9000,
-      id: "ced1b13081d75a8c2e1463a8c2ff09f1ea14ff7af3265bcd3d4acfa3290626f965001a7ed6dbf2a748145ddecf1eb8ffeddf42d29dee3541a769601ea4cbba02"
+      id: "e0c1ee6ec43510f0e16d2969a7a7c074a5c8cdb477c074fe9c32a9aad8cbc8ff1dff60bb81923e0db437d2686a9b65b86c403e6a21fa32b6acc4e61be4d70925"
     },
     node_2: {
-      ip: "54.213.58.75",
+      ip: "54.215.18.98",
       port: 9000,
-      id: "c54ccbea2a8d3c989281a51e7e41298e1e0f668c0c8112f1837944d137744d0c38c0a493d0c45ddfe5e0489bef180bccfcd654b250a539116e83965b90e0413c"
+      id: "629880a5b8d4cc6d12aec26f24230a463825c429723153aeaff29475b29e39d2406af0f8b034ba7798ae598dbd5f513d642bcbbeef088290abeadac61a0445d6"
     },
     node_3: {
-      ip: "34.211.239.153",
+      ip: "54.151.19.111",
       port: 9000,
-      id: "f27242529710fd85a58fcacba31e34857e9bc92d622b4ca856c79a12825bca8fa133dd5697fd650d3caedc93d1524670dd1150b266505c1350d8aafce5f364f8"
+      id: "710b3dc521b805aea7a798d61f5d4dae39601124f1f34fac9738a78047adeff60931ba522250226b87a2194d3b7d39da8d2cbffa35d6502c70f1a7e97132a4b0"
     },
   }
 }
