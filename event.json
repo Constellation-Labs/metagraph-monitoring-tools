@@ -1,6 +1,6 @@
 {
   "metagraph": {
-    "id": "DAG5kfY9GoHF1CYaY8tuRJxmB3JSzAEARJEAkA2C",
+    "id": "DAG0CyySf35ftDQDQBnd1bdQ9aPyUdacMghpnCuM",
     "name": "DOR",
     "include_currency_l1_layer": true,
     "include_data_l1_layer": true,
@@ -21,35 +21,35 @@
       "data_l1_cli_port": 9002
     },
     "required_env_variables": {
-      "cl_app_env": "integrationnet",
+      "cl_app_env": "mainnet",
       "cl_collateral": 0
     },
     "additional_metagraph_l0_env_variables": [
-      "METAGRAPH_L0_NODE_URL=http://54.218.46.24:7000/cluster/info",
-      "DATA_L1_NODE_URL=http://54.218.46.24:9000/cluster/info"
+      "METAGRAPH_L0_NODE_URL=http://54.191.143.191:7000/cluster/info",
+      "DATA_L1_NODE_URL=http://54.191.143.191:9000/cluster/info"
     ],
     "additional_currency_l1_env_variables": [],
     "additional_data_l1_env_variables": []
   },
   "network": {
-    "name": "integrationnet"
+    "name": "mainnet"
   },
   "aws": {
     "region": "us-west-2",
     "ec2": {
       "instances": {
         "genesis": {
-          "id": "i-03b3276264675e661",
-          "ip": "54.218.46.24"
+          "id": "i-02cd28287c031457d",
+          "ip": "54.191.143.191"
         },
         "validators": [
           {
-            "id": "i-074aabc2ebd03819b",
-            "ip": "34.212.237.118"
+            "id": "i-023598d60862a9575",
+            "ip": "54.213.58.75"
           },
           {
-            "id": "i-0cc80924a8124f3e6",
-            "ip": "34.219.123.201"
+            "id": "i-0a29153b8b04ab7c1",
+            "ip": "34.211.239.153"
           }
         ]
       }
