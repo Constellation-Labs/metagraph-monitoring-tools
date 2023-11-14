@@ -148,13 +148,14 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
   const finalSnapshotToRemove = initialSnapshotToRemove + 50
 
   console.log(`Creating the mv_snapshot.sh script under metagraph-l0 directory`)
+  const bkpDirectoryName = `incremental_snapshot_bkp_${moment.utc().format('YYYY_MM_DD_HH_mm_ss')}`
   const creatingCommands = [
     `cd ${file_system.base_metagraph_l0_directory}`,
-    `mkdir -p data/incremental_snapshot_bkp`,
+    `mkdir -p data/${bkpDirectoryName}`,
 
     `echo "# Set the source and target directories
     source_dir="data/incremental_snapshot"
-    target_dir="data/incremental_snapshot_bkp/"
+    target_dir="data/${bkpDirectoryName}/"
     # Use find to locate the files within the specified range
     for ((i=\$1; i<=\$2; i++)); do
         echo "Processing file with ID \$source_dir/\$i"
