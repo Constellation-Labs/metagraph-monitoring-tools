@@ -79,42 +79,39 @@ const killCurrentProcesses = async (ssmClient, event, ec2InstancesIds) => {
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
-const getRemoveInstructionByOrdinal = async (event, ordinal) => {
-  const beUrl = `https://be-${event.network.name}.constellationnetwork.io/currency/${event.metagraph.id}/snapshots/${ordinal}`
-  try {
-    const response = await axios.get(beUrl)
-    const lastSnapshotOrdinal = response.data.data.ordinal
-    const lastSnapshotHash = response.data.data.hash
-
-    return [`rm data/incremental_snapshot/${lastSnapshotOrdinal}`, `rm data/incremental_snapshot/${lastSnapshotHash}`]
-  } catch (e) {
-    return [`rm data/incremental_snapshot/${ordinal}`]
-  }
-}
-
 const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => {
   const { file_system } = event.metagraph
   const { lastSnapshotOrdinal } = await getLastMetagraphInfo(event)
   const initialSnapshotToRemove = lastSnapshotOrdinal
   const finalSnapshotToRemove = initialSnapshotToRemove + 50
 
-  console.log(`Removing snapshots on data folder between: ${initialSnapshotToRemove} - ${finalSnapshotToRemove}`)
+  console.log(`Creating the mv_snapshot.sh script under metagraph-l0 directory`)
+  const creatingCommands = [
+    `cd ${file_system.base_metagraph_l0_directory}`,
+    `mkdir -p data/incremental_snapshot_bkp`,
 
-  //Somehow the syntax rm data/incremental_snapshot/{x..y} doesn't work, so we put individually
-  const promises = []
-  for (let idx = initialSnapshotToRemove; idx <= finalSnapshotToRemove; idx++) {
-    promises.push(getRemoveInstructionByOrdinal(event, idx))
-  }
+    `echo "# Set the source and target directories
+    source_dir="data/incremental_snapshot"
+    target_dir="data/incremental_snapshot_bkp/"
+    # Use find to locate the files within the specified range
+    for ((i=\$1; i<=\$2; i++)); do
+        echo "Processing file with ID \$source_dir/\$i"
+        find data/incremental_snapshot -mount -samefile data/incremental_snapshot/\$i -exec mv {} "\$target_dir" \;
+    done" > mv_snapshots.sh`,
 
-  const deletingCommands = await Promise.all(promises)
-  const allDeletingCommands = deletingCommands.reduce((acc, curr) => [...acc, ...curr], [])
+    `sudo chmod +x mv_snapshots.sh`,
+  ]
+  await sendCommand(ssmClient, creatingCommands, ec2InstancesIds)
+  console.log(`Finished creating mv_snapshot.sh script`)
 
+  console.log(`Moving incremental snapshots on data/incremental_snapshot to data/incremental_snapshot_bkp between: ${initialSnapshotToRemove} - ${finalSnapshotToRemove}`)
   const commands = [
     `cd ${file_system.base_metagraph_l0_directory}`,
-    ...allDeletingCommands
+    `/mv_snapshots.sh ${initialSnapshotToRemove} ${finalSnapshotToRemove}`
   ]
 
   await sendCommand(ssmClient, commands, ec2InstancesIds)
+  console.log(`Finishing moving the snapshots`)
 }
 
 const joinNodeToCluster = async (ssmClient, event, layer, joiningNodeId, ec2InstancesIds) => {
