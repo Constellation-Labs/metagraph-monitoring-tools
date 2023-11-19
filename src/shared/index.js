@@ -146,7 +146,7 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
   const { file_system } = event.metagraph
   const { lastSnapshotOrdinal } = await getLastMetagraphInfo(event)
   const initialSnapshotToRemove = lastSnapshotOrdinal
-  const finalSnapshotToRemove = initialSnapshotToRemove + 50
+  const finalSnapshotToRemove = initialSnapshotToRemove + 100
 
   console.log(`Creating the mv_snapshot.sh script under metagraph-l0 directory`)
   const bkpDirectoryName = `incremental_snapshot_bkp_${moment.utc().format('YYYY_MM_DD_HH_mm_ss')}`
