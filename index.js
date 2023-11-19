@@ -19,7 +19,7 @@ import { createMetagraphRestartSuccessfullyAlert, createMetagraphRestartFailureA
 import { LAYERS, VALID_NETWORKS, RESTART_REASONS, DYNAMO_RESTART_STATE, DATE_FORMAT } from './src/utils/types.js'
 import { deleteMetagraphRestart, getMetagraphRestartOrCreateNew, upsertMetagraphRestart } from './src/external/aws/dynamo.js'
 
-const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 240
+const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 600
 
 const getLogsNames = () => {
   const now = moment.utc().format('YYY-MM-DD_HH-mm-ss')
