@@ -146,7 +146,7 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
   const { file_system } = event.metagraph
   const { lastSnapshotOrdinal } = await getLastMetagraphInfo(event)
   const initialSnapshotToRemove = lastSnapshotOrdinal
-  const finalSnapshotToRemove = initialSnapshotToRemove + 100
+  const finalSnapshotToRemove = initialSnapshotToRemove + 1
 
   console.log(`Creating the mv_snapshot.sh script under metagraph-l0 directory`)
   const bkpDirectoryName = `incremental_snapshot_bkp_${moment.utc().format('YYYY_MM_DD_HH_mm_ss')}`
@@ -158,9 +158,16 @@ const deleteSnapshotNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => 
     source_dir="data/incremental_snapshot"
     target_dir="data/${bkpDirectoryName}/"
     # Use find to locate the files within the specified range
-    for ((i=$1; i<=$2; i++)); do
-        echo "Processing file with ID $source_dir/$i"
-        find data/incremental_snapshot -mount -samefile data/incremental_snapshot/$i -exec mv {} "$target_dir";
+    for i in \\$(seq \\$1 \\$2); do
+      source_file="\\$source_dir/\\$i"
+
+      # Check if the source file exists before attempting to move it
+      if [ -e "\\$source_file" ]; then
+          echo "Processing file with ID \\$source_file"
+          find \\$source_dir -mount -samefile \\$source_file -exec mv {} "\\$target_dir" \\;
+      else
+          echo "File \\$source_file does not exist."
+      fi
     done" > mv_snapshots.sh`,
 
     `sudo chmod +x mv_snapshots.sh`,
