@@ -1,7 +1,7 @@
 import axios from 'axios'
 import moment from 'moment'
 import { SendCommandCommand, GetParameterCommand } from '@aws-sdk/client-ssm'
-import { LAYERS, NETWORK_NODES } from '../utils/types.js'
+import { CHECK_CLUSTER_HEALTHY_LIMIT, LAYERS, NETWORK_NODES } from '../utils/types.js'
 
 const sleep = (ms) => {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -65,7 +65,7 @@ const getReferenceSourceNode = async (event) => {
   const networkName = network.name
 
   console.log(`Starting to get reference source node for network: ${networkName}`)
-  
+
   const networkNodes = NETWORK_NODES[networkName]
   if (!networkNodes || Object.keys(networkNodes).length === 0) {
     throw Error(`Could not find nodes of network: ${networkName}`)
@@ -75,17 +75,17 @@ const getReferenceSourceNode = async (event) => {
   const { lastSnapshotHash } = await getLatestMetagraphOfNetwork(networkName)
 
   const snapshotExistsOnNode1 = await checkIfSnapshotExistsOnNode(node_1.ip, node_1.port, lastSnapshotHash)
-  if(snapshotExistsOnNode1){
+  if (snapshotExistsOnNode1) {
     return node_1
   }
 
   const snapshotExistsOnNode2 = await checkIfSnapshotExistsOnNode(node_2.ip, node_2.port, lastSnapshotHash)
-  if(snapshotExistsOnNode2){
+  if (snapshotExistsOnNode2) {
     return node_2
   }
 
   const snapshotExistsOnNode3 = await checkIfSnapshotExistsOnNode(node_3.ip, node_3.port, lastSnapshotHash)
-  if(snapshotExistsOnNode3){
+  if (snapshotExistsOnNode3) {
     return node_3
   }
 
@@ -331,6 +331,57 @@ const getAllEC2NodesInstances = (event) => {
   return [genesisNodeId, ...validatorNodesId]
 }
 
+const _checkIfClusterIsUnhealthy = async (url, ports) => {
+  for (let idx = 0; idx < CHECK_CLUSTER_HEALTHY_LIMIT; idx++) {
+    try {
+      const response = await axios.get(url)
+      const clusterInfo = response.data
+      const isL0Url = url.includes(ports.metagraph_l0_public_port)
+
+      console.log(`Cluster Info ${url} response: ${JSON.stringify(clusterInfo)}`)
+
+      if (isL0Url) {
+        console.log(`L0 Cluster, at least one node should be Ready`)
+
+        const anyNodeReady = clusterInfo.some(node => {
+          return node.state === 'Ready'
+        })
+
+        if (!anyNodeReady) {
+          console.log("All L0 nodes are not ready")
+          return true
+        }
+
+        return false
+      }
+
+      console.log(`L1 Cluster, at least 3 nodes should be Ready`)
+      if (clusterInfo.length < 3) {
+        console.log(`Less than 3 nodes: ${url}`)
+        return true
+      }
+
+      const readyNodes = clusterInfo.filter(node => {
+        return node.state === 'Ready'
+      })
+
+      if (readyNodes.length < 3) {
+        console.log(`We should have at least 3 ready nodes: ${url}`)
+        return true
+      }
+
+      return false
+    } catch (e) {
+      if (idx === 4) {
+        console.log(`Unhealthy cluster after trying ${CHECK_CLUSTER_HEALTHY_LIMIT} times`)
+        return true
+      }
+      console.log(`Could not get cluster information at URL: ${url}. Trying again in 5s (${idx + 1}/${CHECK_CLUSTER_HEALTHY_LIMIT})`)
+      await sleep(5 * 1000)
+    }
+  }
+}
+
 const getUnhealthyClusters = async (event) => {
   const { ports } = event.metagraph
   let urls = [`http://${event.aws.ec2.instances.genesis.ip}:${ports.metagraph_l0_public_port}/cluster/info`]
@@ -345,39 +396,8 @@ const getUnhealthyClusters = async (event) => {
 
   const unhealthyClusters = []
   for (const url of urls) {
-    try {
-      const response = await axios.get(url)
-      const clusterInfo = response.data
-      const isL0Url = url.includes(ports.metagraph_l0_public_port)
-
-      if (isL0Url) {
-        const anyNodeReady = clusterInfo.some(node => {
-          return node.state === 'Ready'
-        })
-
-        if (!anyNodeReady) {
-          console.log("All L0 nodes are not ready")
-          unhealthyClusters.push(url)
-        }
-
-        continue
-      }
-
-      if (clusterInfo.length < 3) {
-        console.log(`Less than 3: ${url}`)
-        unhealthyClusters.push(url)
-        continue
-      }
-
-      const anyNodeNotReady = clusterInfo.some(node => {
-        return node.state !== 'Ready'
-      })
-
-      if (anyNodeNotReady) {
-        console.log(`Not READY: ${url}`)
-        unhealthyClusters.push(url)
-      }
-    } catch (e) {
+    const clusterIsUnhealthy = await _checkIfClusterIsUnhealthy(url, ports)
+    if(clusterIsUnhealthy){
       unhealthyClusters.push(url)
     }
   }
