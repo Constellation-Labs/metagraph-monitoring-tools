@@ -99,6 +99,7 @@ const checkIfNewSnapshotsAreProducedAfterRestart = async (event) => {
 
   const lastSnapshotTimestampDiff = moment.utc().diff(lastSnapshotTimestamp, 'minutes')
   if (lastSnapshotTimestampDiff > 4) {
+    await deleteMetagraphRestart(event.metagraph.id)
     throw Error("Snapshots keep not being produced even after restarting, take a look at the instances")
   }
 
