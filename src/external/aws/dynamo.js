@@ -8,14 +8,18 @@ import {
 
 const dynamodb = new AWS.DynamoDB()
 
-const upsertMetagraphRestart = async (metagraphId, state, updatedAt) => {
+const upsertMetagraphRestart = async (metagraphId, state, restartType, restartReason, referenceNodeIp, individualNodesIpsWithPorts) => {
   const item = {
     TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Item: {
       id: { S: metagraphId },
       state: { S: state },
       type: { S: 'metagraph' },
-      updated_at: { S: updatedAt || moment.utc().format(DATE_FORMAT) },
+      restart_type: { S: restartType || '' },
+      restart_reason: { S: restartReason || ''},
+      reference_node_ip: { S: referenceNodeIp || '' },
+      individual_nodes_ips_with_ports: { S: individualNodesIpsWithPorts || '' },
+      updated_at: { S: moment.utc().format(DATE_FORMAT) },
     },
   }
 
@@ -29,6 +33,7 @@ const upsertMetagraphRestart = async (metagraphId, state, updatedAt) => {
 }
 
 const getMetagraphRestartOrCreateNew = async (metagraphId) => {
+  console.log(`Starting to get metagraph restart or create new`)
   const params = {
     TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Key: {
@@ -54,12 +59,24 @@ const getMetagraphRestartOrCreateNew = async (metagraphId) => {
   }
 
   const state = Item.state.S
-  const updatedAt = Item.updated_at.S
-  return {
+  const updatedAt = Item.updated_at?.S
+  const restartType = Item.restart_type?.S
+  const restartReason = Item.restart_reason?.S
+  const referenceNodeIp = Item.reference_node_ip?.S
+  const individualNodesIpsWithPorts = Item.individual_nodes_ips_with_ports?.S
+
+  const body = {
     state,
-    updatedAt
+    updatedAt,
+    restartType,
+    restartReason,
+    referenceNodeIp,
+    individualNodesIpsWithPorts
   }
 
+  console.log(`Metagraph restart on Dynamo: ${JSON.stringify(body)}`)
+
+  return body
 }
 
 const deleteMetagraphRestart = async (metagraphId) => {

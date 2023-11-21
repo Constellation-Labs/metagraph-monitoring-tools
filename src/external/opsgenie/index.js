@@ -1,6 +1,6 @@
 import axios from 'axios'
-import { getSSMParameter, printSeparatorWithMessage } from '../shared/index.js'
-import { VALID_NETWORKS_TAGS_OPSGENIE } from '../utils/types.js'
+import { getSSMParameter } from '../../external/aws/ssm.js'
+import { OPSGENIE_API_KEY_PATH, VALID_NETWORKS_TAGS_OPSGENIE, DYNAMO_RESTART_TYPES } from '../../utils/types.js'
 
 const OPSGENIE_ALERT_URL = "https://api.opsgenie.com/v2/alerts"
 
@@ -23,16 +23,18 @@ const buildValidatorsLogsInstances = (validators) => {
   return messages.join('\n')
 }
 
-const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
+const buildStartedRestartAlertBody = (event, metagraphRestart) => {
   const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
   const { name: networkName } = event.network
   const { genesis, validators } = event.aws.ec2.instances
 
   return {
-    message: `${metagraphName} Metagraph Restarted Successfully`,
+    message: `${metagraphName} Metagraph Started a Restart`,
     description: `
-    The ${metagraphName} Metagraph restarted succesfully on ${networkName}.
-    Restart reason: ${restartReason}
+    The ${metagraphName} Metagraph started a restart on ${networkName}.
+    Restart Type: ${metagraphRestart.restartType}
+    Restart reason: ${metagraphRestart.restartReason}
+    ${metagraphRestart.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER ? `Referece Node IP: ${metagraphRestart.referenceNodeIp}` : `Nodes Ips: ${metagraphRestart.individualNodesIpsWithPorts}`}
     
     You can check the metagraph nodes on these URLs:
     ML0 - Genesis: http://${genesis.ip}:${ports.metagraph_l0_public_port}/node/info
@@ -51,31 +53,26 @@ const buildSuccessfullyRestartAlertBody = (event, logNames, restartReason) => {
     ${buildValidatorsLogsURLs(validators, 'DL1', ports.data_l1_public_port)}
     `: ''
       }
-
-    The following logs were stored in the following directories on EC2 instances:
-    /home/ubuntu/code/restart_logs/${logNames.l0LogName}
-    ${include_currency_l1_layer ? `/home/ubuntu/code/restart_logs/${logNames.cl1LogName}` : ''}
-    ${include_data_l1_layer ? `/home/ubuntu/code/restart_logs/${logNames.dl1LogName}` : ''}
     
     EC2 instances:
     Instance 1 (Genesis) ID: ${genesis.id}
     Instance 1 (Genesis) IP: ${genesis.ip}
     ${buildValidatorsLogsInstances(validators)}
     `,
-    alias: `${id}_successfully_restarted`,
+    alias: `${id}_restart`,
     actions: ["Metagraph", "Restart"],
-    tags: ["Metagraph", "Restart", "Successfully", VALID_NETWORKS_TAGS_OPSGENIE[networkName]],
+    tags: [VALID_NETWORKS_TAGS_OPSGENIE[networkName]],
     details: {
       metagraphId: id,
       network: networkName,
       metagraphName: metagraphName
     },
     entity: "Metagraph",
-    priority: "P4"
+    priority: "P3"
   }
 }
 
-const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
+const buildFailureRestartAlertBody = (event, errorMessage, metagraphRestart) => {
   const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
   const { name: networkName } = event.network
   const { genesis, validators } = event.aws.ec2.instances
@@ -84,7 +81,9 @@ const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
     message: `${metagraphName} Metagraph Failed to Restart`,
     description: `
     The ${metagraphName} Metagraph failed to restart on ${networkName}.
-    Restart reason: ${restartReason}
+    Restart Type: ${metagraphRestart.restartType}
+    Restart Reason: ${metagraphRestart.restartReason}
+    ${metagraphRestart.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER ? `Referece Node IP: ${metagraphRestart.referenceNodeIp}` : `Nodes Ips: ${metagraphRestart.individualNodesIpsWithPorts}`}
     Error message returned: ${errorMessage}
     
     You can check the metagraph nodes on these URLs:
@@ -112,7 +111,7 @@ const buildFailureRestartAlertBody = (event, errorMessage, restartReason) => {
     `,
     actions: ["Metagraph", "Restart"],
     alias: `${id}_failure_restarted`,
-    tags: ["Metagraph", "Restart", "Failure", VALID_NETWORKS_TAGS_OPSGENIE[networkName]],
+    tags: [VALID_NETWORKS_TAGS_OPSGENIE[networkName]],
     details: {
       metagraphId: id,
       network: networkName,
@@ -136,25 +135,53 @@ const createRemoteAlert = async (body, opsgenieApiKey) => {
   }
 }
 
-const createMetagraphRestartSuccessfullyAlert = async (ssmClient, event, logNames, restartReason) => {
-  printSeparatorWithMessage("CREATING SUCCESSFULY RESTART ALERT ON OPSGENIE")
-  const opsgenieApiKey = await getSSMParameter(ssmClient, '/metagraph-nodes/opsgenie-api-key')
-  const alertBody = buildSuccessfullyRestartAlertBody(event, logNames, restartReason)
-
-  await createRemoteAlert(alertBody, opsgenieApiKey)
-  printSeparatorWithMessage("Finished")
+const closeRemoteAlert = async (alias, opsgenieApiKey) => {
+  const body = {
+    "user": "Monitoring Script",
+    "source": "AWS Lambda",
+    "note": "Action executed via Alert API"
+  }
+  try {
+    await axios.post(`${OPSGENIE_ALERT_URL}/${alias}/close?identifierType=alias`, body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `GenieKey ${opsgenieApiKey}`
+      }
+    })
+  } catch (e) {
+    throw Error(`Failing when creating remote alert: ${e}`)
+  }
 }
 
-const createMetagraphRestartFailureAlert = async (ssmClient, event, errorMessage, restartReason) => {
-  printSeparatorWithMessage("CREATING FAILURE RESTART ALERT ON OPSGENIE")
-  const opsgenieApiKey = await getSSMParameter(ssmClient, '/metagraph-nodes/opsgenie-api-key')
-  const alertBody = buildFailureRestartAlertBody(event, errorMessage, restartReason)
+const createMetagraphRestartStartedAlert = async (ssmClient, event, metagraphRestart) => {
+  console.log(`Creating Metagraph Restart Started Alert`)
+  const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
+  const alertBody = buildStartedRestartAlertBody(event, metagraphRestart)
 
   await createRemoteAlert(alertBody, opsgenieApiKey)
-  printSeparatorWithMessage("Finished")
+  console.log(`Alert created`)
+}
+
+const closeCurrentMetagraphRestartAlert = async (ssmClient, event) => {
+  console.log(`Closing metagraph restart alert`)
+  const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
+  const alias = `${event.metagraph.id}_restart`
+ 
+  await closeRemoteAlert(alias, opsgenieApiKey)
+  console.log(`Alert close`)
+}
+
+const createMetagraphRestartFailureAlert = async (ssmClient, event, errorMessage, metagraphRestart) => {
+  console.log(`Creating Metagraph Restart Failure Alert`)
+  const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
+  const alertBody = buildFailureRestartAlertBody(event, errorMessage, metagraphRestart)
+
+  await createRemoteAlert(alertBody, opsgenieApiKey)
+  console.log(`Alert created`)
 }
 
 export {
-  createMetagraphRestartSuccessfullyAlert,
+  createMetagraphRestartStartedAlert,
+  closeCurrentMetagraphRestartAlert,
   createMetagraphRestartFailureAlert
 }
