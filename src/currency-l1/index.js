@@ -1,17 +1,14 @@
-import {
-  sendCommand,
-  getInformationToJoinNode,
-  checkIfValidatorsStarted,
-  joinNodeToCluster,
-  printSeparatorWithMessage,
-  getKeys,
-  saveLogs,
-  getAllEC2NodesInstances
-} from '../shared/index.js'
-import { LAYERS } from '../utils/types.js'
+import { getKeys, sendCommand } from '../external/aws/ssm.js'
+import { saveLogs, killCurrentExecution } from '../shared/index.js'
+import { KEY_LAYERS, LAYERS } from '../utils/types.js'
 
-const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2InstancesIds, referenceSourceNode) => {
-  const cl1Keys = await getKeys(ssmClient, event.aws.ec2.instances.genesis.id, 'cl1')
+const startInitialValidatorNodeCurrencyL1 = async (ssmClient, event, logName, mL0NodeId, rollbackNode, referenceSourceNode, shouldKillCurrentExecution = true) => {
+  if (shouldKillCurrentExecution) {
+    await killCurrentExecution(ssmClient, event, LAYERS.CURRENCY_L1, [rollbackNode.id])
+  }
+
+  await saveLogs(ssmClient, event, logName, LAYERS.CURRENCY_L1, [rollbackNode.id])
+  const cl1Keys = await getKeys(ssmClient, rollbackNode.id, KEY_LAYERS.CURRENCY_L1)
 
   const { ports } = event.metagraph
   const {
@@ -50,13 +47,20 @@ const startInitialValidatorNodeL1 = async (ssmClient, event, mL0NodeId, ec2Insta
   const commands = [
     ...envVariables,
     `cd ${file_system.base_currency_l1_directory}`,
-    `nohup java -jar currency-l1.jar run-initial-validator --ip ${event.aws.ec2.instances.genesis.ip} > node-l1.log 2>&1 &`
+    `nohup java -jar currency-l1.jar run-initial-validator --ip ${rollbackNode.ip} > node-l1.log 2>&1 &`
   ]
 
-  await sendCommand(ssmClient, commands, ec2InstancesIds)
+  await sendCommand(ssmClient, commands, [rollbackNode.id])
 }
 
-const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceIp, ec2InstancesIds, referenceSourceNode) => {
+const startValidatorNodeCurrencyL1 = async (ssmClient, event, logName, mL0NodeId, validator, referenceSourceNode, shouldKillCurrentExecution = true) => {
+  if (shouldKillCurrentExecution) {
+    await killCurrentExecution(ssmClient, event, LAYERS.CURRENCY_L1, [validator.id])
+  }
+  
+  await saveLogs(ssmClient, event, logName, LAYERS.CURRENCY_L1, [validator.id])
+  const validatorKeys = await getKeys(ssmClient, validator.id, KEY_LAYERS.CURRENCY_L1)
+
   const { ports } = event.metagraph
   const {
     id,
@@ -66,6 +70,10 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
   } = event.metagraph
 
   const envVariables = [
+    `export CL_KEYSTORE="${validatorKeys.keyStore}"`,
+    `export CL_KEYALIAS="${validatorKeys.keyAlias}"`,
+    `export CL_PASSWORD="${validatorKeys.password}"`,
+
     `export CL_PUBLIC_HTTP_PORT=${ports.currency_l1_public_port}`,
     `export CL_P2P_HTTP_PORT=${ports.currency_l1_p2p_port}`,
     `export CL_CLI_HTTP_PORT=${ports.currency_l1_cli_port}`,
@@ -90,55 +98,10 @@ const startValidatorNodeL1 = async (ssmClient, event, mL0NodeId, keys, instanceI
   const commands = [
     ...envVariables,
     `cd ${file_system.base_currency_l1_directory}`,
-    `nohup java -jar currency-l1.jar run-validator --ip ${instanceIp} > node-l1.log 2>&1 &`
+    `nohup java -jar currency-l1.jar run-validator --ip ${validator.ip} > node-l1.log 2>&1 &`
   ]
 
-  await sendCommand(ssmClient, [...keys, ...commands], ec2InstancesIds)
+  await sendCommand(ssmClient, commands, [validator.id])
 }
 
-const restartCurrencyL1Nodes = async (ssmClient, event, metagraphL0NodeId, logName, referenceSourceNode) => {
-  const allEC2NodesIntances = getAllEC2NodesInstances(event)
-  await saveLogs(ssmClient, event, logName, LAYERS.CURRENCY_L1, allEC2NodesIntances)
-
-  printSeparatorWithMessage('Starting initial validator currency l1 node')
-  await startInitialValidatorNodeL1(ssmClient, event, metagraphL0NodeId, [event.aws.ec2.instances.genesis.id], referenceSourceNode)
-  printSeparatorWithMessage('Finished')
-
-  printSeparatorWithMessage('Starting validators currency l1 node')
-  for (const validator of event.aws.ec2.instances.validators) {
-    console.log(`Starting validator ${validator.ip}`)
-    const validator1Keys = await getKeys(ssmClient, validator.id, 'cl1')
-    await startValidatorNodeL1(
-      ssmClient,
-      event,
-      metagraphL0NodeId,
-      [
-        `export CL_KEYSTORE="${validator1Keys.keyStore}"`,
-        `export CL_KEYALIAS="${validator1Keys.keyAlias}"`,
-        `export CL_PASSWORD="${validator1Keys.password}"`
-      ],
-      validator.ip,
-      [validator.id],
-      referenceSourceNode
-    )
-  }
-  printSeparatorWithMessage('Finished')
-
-  printSeparatorWithMessage('Starting to get information to join node')
-  const { nodeId } = await getInformationToJoinNode(event, LAYERS.CURRENCY_L1)
-  printSeparatorWithMessage('Finished')
-
-  printSeparatorWithMessage('Check if validators started successfully')
-  await checkIfValidatorsStarted(event, LAYERS.CURRENCY_L1)
-  printSeparatorWithMessage('Finished')
-
-  printSeparatorWithMessage(`Joining validators currency L1 to the cluster. GenesisNodeId: ${nodeId}`)
-  for (const validator of event.aws.ec2.instances.validators) {
-    console.log(`Joining validator ${validator.ip}`)
-    await joinNodeToCluster(ssmClient, event, LAYERS.CURRENCY_L1, nodeId, [validator.id])
-  }
-  printSeparatorWithMessage('Finished')
-
-}
-
-export { restartCurrencyL1Nodes }
+export { startInitialValidatorNodeCurrencyL1, startValidatorNodeCurrencyL1 }
