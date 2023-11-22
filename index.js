@@ -83,7 +83,7 @@ const getMetagraphRestartType = async (event, lastSnapshotTimestamp) => {
     const unhealthyDataL1 = unhealthyNodesGroupedByLayer[LAYERS.DATA_L1] ?? []
 
     if (unhealthyNodes.length === 9 || unhealthyMetagraphL0.length === 3) {
-      console.log(`Restart type FULL CLUSTER: Unhealthy clusters. ML0: ${JSON.stringify(unhealthyMetagraphL0)}, CL1: ${unhealthyCurrencyL1}, DL1: ${unhealthyDataL1}`)
+      console.log(`Restart type FULL CLUSTER: Unhealthy clusters. ML0: ${JSON.stringify(unhealthyMetagraphL0)}, CL1: ${JSON.stringify(unhealthyCurrencyL1)}, DL1: ${JSON.stringify(unhealthyDataL1)}`)
       return {
         restartType: DYNAMO_RESTART_TYPES.FULL_CLUSTER,
         reason: RESTART_REASONS.UNHEALTHY_CLUSTER,
@@ -95,7 +95,7 @@ const getMetagraphRestartType = async (event, lastSnapshotTimestamp) => {
       }
     }
 
-    console.log(`Restart type INDIVIDUAL NODES: Unhealthy clusters. ML0: ${unhealthyMetagraphL0}, CL1: ${unhealthyCurrencyL1}, DL1: ${unhealthyDataL1}`)
+    console.log(`Restart type INDIVIDUAL NODES: Unhealthy clusters. ML0: ${JSON.stringify(unhealthyMetagraphL0)}, CL1: ${JSON.stringify(unhealthyCurrencyL1)}, DL1: ${JSON.stringify(unhealthyDataL1)}`)
     return {
       restartType: DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES,
       reason: RESTART_REASONS.UNHEALTHY_CLUSTER,
