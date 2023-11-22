@@ -80,6 +80,7 @@ const joinNodeToCluster = async (ssmClient, event, layer, nodeInformation, ec2In
   const { nodeId, nodeHost, nodeP2pPort } = nodeInformation
   const { ports } = event.metagraph
 
+  console.log(`Joining to node ${nodeHost} with id: ${nodeId}`)
   const joiningInstruction = {
     [LAYERS.L0]: `curl -v -X POST http://localhost:${ports.metagraph_l0_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${nodeId}", "ip": "${nodeHost}", "p2pPort": ${nodeP2pPort} }'`,
     [LAYERS.CURRENCY_L1]: `curl -v -X POST http://localhost:${ports.currency_l1_cli_port}/cluster/join -H "Content-type: application/json" -d '{ "id":"${nodeId}", "ip": "${nodeHost}", "p2pPort": ${nodeP2pPort} }'`,
