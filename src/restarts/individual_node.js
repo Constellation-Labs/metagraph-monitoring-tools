@@ -4,7 +4,7 @@ import { startValidatorNodeL0 } from "../metagraph-l0/index.js"
 import { getInformationToJoinNode, sleep, joinNodeToCluster, checkIfNodeStarted } from "../shared/index.js"
 import { LAYERS } from "../utils/types.js"
 
-const startMetagraphL0ValidatorNode = async (ssmClient, event, node, logName, nodeId, referenceSourceNode) => {
+const startMetagraphL0ValidatorNode = async (ssmClient, event, node, logName, nodeInformation, referenceSourceNode) => {
   console.log(`Starting validator ${node.ip}`)
   await startValidatorNodeL0(
     ssmClient,
@@ -15,10 +15,12 @@ const startMetagraphL0ValidatorNode = async (ssmClient, event, node, logName, no
   )
 
   await checkIfNodeStarted(`http://${node.ip}:${node.port}/node/info`)
-  await sleep(10 * 1000)
-  await joinNodeToCluster(ssmClient, event, LAYERS.L0, nodeId, [node.id])
 
-  return nodeId
+  console.log('Waiting 10s before joining...')
+  await sleep(10 * 1000)
+  
+  console.log(`Joining validator ${node.ip}`)
+  await joinNodeToCluster(ssmClient, event, LAYERS.L0, nodeInformation, [node.id])
 }
 
 const startCurrencyL1ValidatorNode = async (ssmClient, event, node, logName, ml0NodeId, referenceSourceNode) => {
@@ -34,6 +36,8 @@ const startCurrencyL1ValidatorNode = async (ssmClient, event, node, logName, ml0
   )
 
   await checkIfNodeStarted(`http://${node.ip}:${node.port}/node/info`)
+  
+  console.log('Waiting 10s before joining...')
   await sleep(10 * 1000)
 
   console.log(`Joining validator ${node.ip}`)
@@ -54,6 +58,8 @@ const startDataL1ValidatorNode = async (ssmClient, event, node, logName, ml0Node
   )
 
   await checkIfNodeStarted(`http://${node.ip}:${node.port}/node/info`)
+
+  console.log('Waiting 10s before joining...')
   await sleep(10 * 1000)
 
   console.log(`Joining validator ${node.ip}`)
@@ -61,16 +67,16 @@ const startDataL1ValidatorNode = async (ssmClient, event, node, logName, ml0Node
 }
 
 const restartIndividualNode = async (ssmClient, event, logName, node, referenceSourceNode) => {
-  const { nodeId } = await getInformationToJoinNode(event, LAYERS.L0)
+  const nodeInformation = await getInformationToJoinNode(event, LAYERS.L0)
 
   if (node.layer === LAYERS.L0) {
-    await startMetagraphL0ValidatorNode(ssmClient, event, node, logName, nodeId, referenceSourceNode)
+    await startMetagraphL0ValidatorNode(ssmClient, event, node, logName, nodeInformation, referenceSourceNode)
   }
   if (node.layer === LAYERS.CURRENCY_L1) {
-    await startCurrencyL1ValidatorNode(ssmClient, event, node, logName, nodeId, referenceSourceNode)
+    await startCurrencyL1ValidatorNode(ssmClient, event, node, logName, nodeInformation.nodeId, referenceSourceNode)
   }
   if (node.layer === LAYERS.DATA_L1) {
-    await startDataL1ValidatorNode(ssmClient, event, node, logName, nodeId, referenceSourceNode)
+    await startDataL1ValidatorNode(ssmClient, event, node, logName, nodeInformation.nodeId, referenceSourceNode)
   }
 }
 
