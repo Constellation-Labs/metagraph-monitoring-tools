@@ -4,7 +4,12 @@ const LAYERS = {
   DATA_L1: 'data-l1'
 }
 
-const VALID_NETWORKS = ['mainnet', 'integrationnet', 'testnet']
+const KEY_LAYERS = {
+  L0: 'l0',
+  CURRENCY_L1: 'cl1',
+  DATA_L1: 'dl1'
+}
+
 const VALID_NETWORKS_TAGS_OPSGENIE = {
   mainnet: 'env:MainNet',
   integrationnet: 'env:IntegrationNet',
@@ -19,14 +24,27 @@ const RESTART_REASONS = {
   UNHEALTHY_CLUSTER: "One of the clusters are unhealthy (less than 3 nodes or nodes with not Ready state)"
 }
 
+const DYNAMO_RESTART_TYPES = {
+  NOT_RESTART: "NOT RESTART",
+  FULL_CLUSTER: "Full Cluster",
+  INDIVIDUAL_NODES: "Individual Nodes"
+}
+
 const DYNAMO_RESTART_STATE = {
   NEW: 'NEW',
-  ROLLBACK_IN_PROGRESS: "ROLLBACK IN PROGRESS",
+  ROLLBACK_IN_PROGRESS: 'ROLLBACK IN PROGRESS',
+  READY_TO_JOIN: 'READY TO JOIN',
   READY: 'READY'
 }
 
 const DYNAMO_DB_TABLE_AUTO_RESTART = 'auto_restart'
-const CHECK_CLUSTER_HEALTHY_LIMIT = 5
+const CHECK_NODE_HEALTHY_LIMIT = 5
+
+const OPSGENIE_API_KEY_PATH = '/metagraph-nodes/opsgenie-api-key'
+
+const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 600
+
+const NUMBER_OF_SNAPSHOTS_TO_MOVE_SINCE_LAST_ON_BE = 100
 
 const NETWORK_NODES = {
   testnet: {
@@ -84,12 +102,16 @@ const NETWORK_NODES = {
 
 export {
   LAYERS,
-  VALID_NETWORKS,
+  KEY_LAYERS,
   VALID_NETWORKS_TAGS_OPSGENIE,
   DATE_FORMAT,
   RESTART_REASONS,
+  DYNAMO_RESTART_TYPES,
   DYNAMO_RESTART_STATE,
   DYNAMO_DB_TABLE_AUTO_RESTART,
-  CHECK_CLUSTER_HEALTHY_LIMIT,
-  NETWORK_NODES
+  CHECK_NODE_HEALTHY_LIMIT,
+  NETWORK_NODES,
+  OPSGENIE_API_KEY_PATH,
+  ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES,
+  NUMBER_OF_SNAPSHOTS_TO_MOVE_SINCE_LAST_ON_BE
 }
