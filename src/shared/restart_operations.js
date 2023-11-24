@@ -88,7 +88,7 @@ const joinNodeToCluster = async (ssmClient, event, layer, nodeInformation, ec2In
   }
 
   const commands = [joiningInstruction[layer]]
-
+  console.log(`Sending joining ${commands} to :${ec2InstancesIds}`)
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
