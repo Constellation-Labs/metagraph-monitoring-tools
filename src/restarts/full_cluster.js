@@ -1,7 +1,7 @@
 import { startInitialValidatorNodeCurrencyL1, startValidatorNodeCurrencyL1 } from "../currency-l1/index.js"
 import { startInitialValidatorNodeDataL1, startValidatorNodeDataL1 } from "../data-l1/index.js"
 import { startRollbackNodeL0, startValidatorNodeL0 } from "../metagraph-l0/index.js"
-import { getInformationToJoinNode, checkIfValidatorsStarted, sleep, joinNodeToCluster, killCurrentExecution } from "../shared/index.js"
+import { getInformationToJoinNode, sleep, joinNodeToCluster, killCurrentExecution, checkIfNodeStarted } from "../shared/index.js"
 import { LAYERS } from "../utils/types.js"
 
 const startMetagraphL0Validators = async (ssmClient, event, logName, nodeId, referenceSourceNode) => {
@@ -14,10 +14,9 @@ const startMetagraphL0Validators = async (ssmClient, event, logName, nodeId, ref
       validator,
       referenceSourceNode
     )
-  }
 
-  await checkIfValidatorsStarted(event, LAYERS.L0)
-  for (const validator of event.aws.ec2.instances.validators) {
+    const { metagraph_l0_public_port } = event.metagraph.ports
+    await checkIfNodeStarted(`http://${validator.ip}:${metagraph_l0_public_port}/node/info`)
     console.log(`Joining validator ${validator.ip}`)
     await joinNodeToCluster(ssmClient, event, LAYERS.L0, nodeId, [validator.id])
   }
@@ -39,10 +38,9 @@ const startCurrencyL1Nodes = async (ssmClient, event, logName, ml0NodeId, refere
       validator,
       referenceSourceNode
     )
-  }
+    const { currency_l1_public_port } = event.metagraph.ports
 
-  await checkIfValidatorsStarted(event, LAYERS.CURRENCY_L1)
-  for (const validator of event.aws.ec2.instances.validators) {
+    await checkIfNodeStarted(`http://${validator.ip}:${currency_l1_public_port}/node/info`)
     console.log(`Joining validator ${validator.ip}`)
     await joinNodeToCluster(ssmClient, event, LAYERS.CURRENCY_L1, nodeInformation, [validator.id])
   }
@@ -63,10 +61,10 @@ const startDataL1Nodes = async (ssmClient, event, logName, ml0NodeId, referenceS
       validator,
       referenceSourceNode
     )
-  }
 
-  await checkIfValidatorsStarted(event, LAYERS.DATA_L1)
-  for (const validator of event.aws.ec2.instances.validators) {
+    const { data_l1_public_port } = event.metagraph.ports
+
+    await checkIfNodeStarted(`http://${validator.ip}:${data_l1_public_port}/node/info`)
     console.log(`Joining validator ${validator.ip}`)
     await joinNodeToCluster(ssmClient, event, LAYERS.DATA_L1, nodeInformation, [validator.id])
   }
@@ -74,24 +72,25 @@ const startDataL1Nodes = async (ssmClient, event, logName, ml0NodeId, referenceS
 
 const startMetagraphRollback = async (ssmClient, event, l0LogName, referenceSourceNode) => {
   const allInstancesIds = [event.aws.ec2.instances.genesis.id, event.aws.ec2.instances.validators[0].id, event.aws.ec2.instances.validators[1].id]
-  
+
   await killCurrentExecution(ssmClient, event, LAYERS.L0, allInstancesIds)
   await killCurrentExecution(ssmClient, event, LAYERS.CURRENCY_L1, allInstancesIds)
   await killCurrentExecution(ssmClient, event, LAYERS.DATA_L1, allInstancesIds)
-  
+
   await startRollbackNodeL0(ssmClient, event, event.aws.ec2.instances.genesis, referenceSourceNode, l0LogName, false)
 }
 
 const finishMetagraphRollback = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }, referenceSourceNode) => {
-  const { nodeId } = await getInformationToJoinNode(event, LAYERS.L0)
+  const node = await getInformationToJoinNode(event, LAYERS.L0)
 
-  await startMetagraphL0Validators(ssmClient, event, l0LogName, nodeId, referenceSourceNode)
+  await startMetagraphL0Validators(ssmClient, event, l0LogName, node, referenceSourceNode)
+
   if (event.metagraph.include_currency_l1_layer) {
-    await startCurrencyL1Nodes(ssmClient, event, cl1LogName, nodeId, referenceSourceNode)
+    await startCurrencyL1Nodes(ssmClient, event, cl1LogName, node.nodeId, referenceSourceNode)
   }
 
   if (event.metagraph.include_data_l1_layer) {
-    await startDataL1Nodes(ssmClient, event, nodeId, dl1LogName, referenceSourceNode)
+    await startDataL1Nodes(ssmClient, event, dl1LogName, node.nodeId, referenceSourceNode)
   }
 }
 
