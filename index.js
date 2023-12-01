@@ -189,11 +189,13 @@ export const handler = async (event) => {
 
     if (metagraphRestartType.restartType === DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES) {
       const unhealthyNodes = [...metagraphRestartType.unhealthyNodes.unhealthyMetagraphL0]
+      const unhealthyClusters = []
       if (
         metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1 &&
         metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1.length === 3
       ) {
         await restartIndividualCluster(ssmClient, event, logsNames.cl1LogName, LAYERS.CURRENCY_L1, referenceSourceNode)
+        unhealthyClusters.push(...metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1)
       } else {
         unhealthyNodes.push(...metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1)
       }
@@ -203,6 +205,7 @@ export const handler = async (event) => {
         metagraphRestartType.unhealthyNodes.unhealthyDataL1.length === 3
       ) {
         await restartIndividualCluster(ssmClient, event, logsNames.dl1LogName, LAYERS.DATA_L1, referenceSourceNode)
+        unhealthyClusters.push(...metagraphRestartType.unhealthyNodes.unhealthyDataL1)
       } else {
         unhealthyNodes.push(...metagraphRestartType.unhealthyNodes.unhealthyDataL1)
       }
@@ -212,7 +215,7 @@ export const handler = async (event) => {
         await restartIndividualNode(ssmClient, event, logName, node, referenceSourceNode)
       }
 
-      const nodesIpsWithPorts = unhealthyNodes.map(node => `${node.ip}:${node.port}`)
+      const nodesIpsWithPorts = [...unhealthyNodes, ...unhealthyClusters].map(node => `${node.ip}:${node.port}`)
       const metagraphRestart = await upsertMetagraphRestart(
         metagraphId,
         DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS,
