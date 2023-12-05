@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { LAYERS } from '../utils/types.js'
+import { CHECK_NODE_HEALTHY_LIMIT, LAYERS } from '../utils/types.js'
 import { sleep } from './shared.js'
 
 const checkIfNodeIsReady = async (nodeIp, nodePort) => {
@@ -34,7 +34,7 @@ const checkIfValidatorsStarted = async (event, layer) => {
 
   for (const url of validatorsUrls) {
     console.log(`Checking validator at URL: ${url}`)
-    for (let idx = 0; idx < 11; idx++) {
+    for (let idx = 0; idx < CHECK_NODE_HEALTHY_LIMIT; idx++) {
       try {
         await axios.get(url)
         console.log(`Node started and healthy`)
@@ -43,15 +43,15 @@ const checkIfValidatorsStarted = async (event, layer) => {
         if (idx === 10) {
           throw Error(`Could not get information of node in URL: ${url}`)
         }
-        console.log(`Node is possibly not READY yet, waiting for 10s to try again (${idx + 1}/11)`)
-        await sleep(10 * 1000)
+        console.log(`Node is possibly not READY yet, waiting for 1s to try again (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
+        await sleep(1 * 1000)
       }
     }
   }
 }
 
 const checkIfNodeStarted = async (url) => {
-  for (let idx = 0; idx < 11; idx++) {
+  for (let idx = 0; idx < CHECK_NODE_HEALTHY_LIMIT; idx++) {
     try {
       await axios.get(url)
       console.log(`Node started`)
@@ -60,8 +60,8 @@ const checkIfNodeStarted = async (url) => {
       if (idx === 10) {
         throw Error(`Could not get information of node in URL: ${url}`)
       }
-      console.log(`Node possibly not started yet, waiting for 10s to try again (${idx + 1}/11)`)
-      await sleep(10 * 1000)
+      console.log(`Node possibly not started yet, waiting for 1s to try again (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
+      await sleep(1 * 1000)
     }
 
   }
@@ -80,7 +80,7 @@ const checkIfAllNodesAreReady = async (event, layer) => {
   })
 
   let urls = [`http://${event.aws.ec2.instances.genesis.ip}:${layerPorts[layer]}/node/info`, ...validatorsUrls]
-  for (let idx = 0; idx < 20; idx++) {
+  for (let idx = 0; idx < CHECK_NODE_HEALTHY_LIMIT; idx++) {
     try {
       const readyNodesUrls = []
       for (const url of urls) {
@@ -100,16 +100,16 @@ const checkIfAllNodesAreReady = async (event, layer) => {
         return
       } else {
         console.log(`[${layer}] The following nodes are not ready yet: ${JSON.stringify(urls)}`)
-        console.log(`[${layer}] Not all nodes are on Ready state, trying again in 10s (${idx + 1}/20)`)
-        await sleep(10 * 1000)
+        console.log(`[${layer}] Not all nodes are on Ready state, trying again in 1s (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
+        await sleep(1 * 1000)
       }
     } catch (e) {
       if (idx === 19) {
         throw new Error(`[${layer}] Failing when restarting nodes. All nodes should be on READY state`)
       }
 
-      console.log(`[${layer}] Not all nodes are on Ready state, trying again in 10s (${idx + 1}/20)`)
-      await sleep(10 * 1000)
+      console.log(`[${layer}] Not all nodes are on Ready state, trying again in 1s (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
+      await sleep(1 * 1000)
     }
   }
 
