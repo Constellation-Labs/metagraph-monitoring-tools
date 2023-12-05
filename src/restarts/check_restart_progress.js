@@ -8,7 +8,7 @@ import { finishMetagraphRollback } from "./full_cluster.js"
 const checkFullClusterRestart = async (event, metagraphId, currentMetagraphRestart) => {
   console.log(`Checking full cluster restart`)
   const { state, restartType, restartReason, referenceNodeIp } = currentMetagraphRestart;
-  
+
   const node1 = event.aws.ec2.instances.genesis
   const node2 = event.aws.ec2.instances.validators[0]
   const node3 = event.aws.ec2.instances.validators[1]
@@ -69,7 +69,7 @@ const checkRestartStatus = async (event, networkName, currentMetagraphRestart) =
   }
   if (restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
     return await checkFullClusterRestart(event, metagraphId, currentMetagraphRestart)
-  } 
+  }
   if (restartType === DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES) {
     return await checkIndividualNodesRestart(metagraphId, currentMetagraphRestart)
   }
@@ -130,17 +130,24 @@ const getMetagraphRestartProgress = async (ssmClient, event, currentMetagraphRes
     currentMetagraphRestart
   )
 
-  if (
-    metagraphRestartProgress.metagraphRestart.state === DYNAMO_RESTART_STATE.READY_TO_JOIN &&
-    metagraphRestartProgress.metagraphRestart.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER
-  ) {
+  const { state, restartType, restartReason, referenceNodeIp } = metagraphRestartProgress.metagraphRestart
+  if (state === DYNAMO_RESTART_STATE.READY_TO_JOIN && restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
     console.log(`Metagraph is READY_TO_JOIN triggering finishMetagraphRollback`)
+    
     const logsNames = getLogsNames()
     await finishMetagraphRollback(ssmClient, event, logsNames, referenceSourceNode)
 
+    await upsertMetagraphRestart(
+      event.metagraph.id,
+      DYNAMO_RESTART_STATE.JOINING,
+      restartType,
+      restartReason,
+      referenceNodeIp,
+    )
+
     return {
       status: 200,
-      restartState: DYNAMO_RESTART_STATE.READY_TO_JOIN,
+      restartState: DYNAMO_RESTART_STATE.JOINING,
       body: 'finishMetagraphRollback triggered, finishing current execution.',
       metagraphRestart: currentMetagraphRestart
     }
@@ -169,7 +176,7 @@ const getMetagraphRestartProgress = async (ssmClient, event, currentMetagraphRes
     metagraphRestartProgress.metagraphRestart
   )
 
-  const metagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)  
+  const metagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)
   return {
     status: 200,
     restartState: DYNAMO_RESTART_STATE.NEW,
