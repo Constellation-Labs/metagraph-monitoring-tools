@@ -1,7 +1,7 @@
 import { startValidatorNodeCurrencyL1 } from "../currency-l1/index.js"
 import { startValidatorNodeDataL1 } from "../data-l1/index.js"
 import { startValidatorNodeL0 } from "../metagraph-l0/index.js"
-import { getInformationToJoinNode, sleep, joinNodeToCluster, checkIfNodeStarted } from "../shared/index.js"
+import { getInformationToJoinNode, joinNodeToCluster, checkIfNodeStarted } from "../shared/index.js"
 import { LAYERS } from "../utils/types.js"
 
 const startMetagraphL0ValidatorNode = async (ssmClient, event, node, logName, nodeInformation, referenceSourceNode) => {
@@ -14,11 +14,7 @@ const startMetagraphL0ValidatorNode = async (ssmClient, event, node, logName, no
     referenceSourceNode
   )
 
-  await checkIfNodeStarted(`http://${node.ip}:${node.port}/node/info`)
-
-  console.log('Waiting 10s before joining...')
-  await sleep(10 * 1000)
-  
+  await checkIfNodeStarted(`http://${node.ip}:${node.port}/node/info`)  
   console.log(`Joining validator ${node.ip}`)
   await joinNodeToCluster(ssmClient, event, LAYERS.L0, nodeInformation, [node.id])
 }
@@ -36,9 +32,6 @@ const startCurrencyL1ValidatorNode = async (ssmClient, event, node, logName, ml0
   )
 
   await checkIfNodeStarted(`http://${node.ip}:${node.port}/node/info`)
-  
-  console.log('Waiting 10s before joining...')
-  await sleep(10 * 1000)
 
   console.log(`Joining validator ${node.ip}`)
   await joinNodeToCluster(ssmClient, event, LAYERS.CURRENCY_L1, nodeInformation, [node.id])
@@ -58,10 +51,6 @@ const startDataL1ValidatorNode = async (ssmClient, event, node, logName, ml0Node
   )
 
   await checkIfNodeStarted(`http://${node.ip}:${node.port}/node/info`)
-
-  console.log('Waiting 10s before joining...')
-  await sleep(10 * 1000)
-
   console.log(`Joining validator ${node.ip}`)
   await joinNodeToCluster(ssmClient, event, LAYERS.DATA_L1, nodeInformation, [node.id])
 }

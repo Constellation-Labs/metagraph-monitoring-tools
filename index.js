@@ -64,7 +64,7 @@ const getMetagraphRestartType = async (event, lastSnapshotTimestamp) => {
   }
 
   const lastSnapshotTimestampDiff = moment.utc().diff(lastSnapshotTimestamp, 'minutes')
-  if (lastSnapshotTimestampDiff > 4) {
+  if (lastSnapshotTimestampDiff > 3) {
     console.log(`Restart type FULL CLUSTER: Snapshots stopped being produced`)
     return {
       restartType: DYNAMO_RESTART_TYPES.FULL_CLUSTER,

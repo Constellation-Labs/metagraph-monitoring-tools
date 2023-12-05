@@ -70,8 +70,8 @@ const _getUnhealthyNodes = async (clusterInfo) => {
 
           break
         }
-        console.log(`Could not get node information at: ${node.ip}. Trying again in 5s (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
-        await sleep(5 * 1000)
+        console.log(`Could not get node information at: ${node.ip}. Trying again in 1s (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
+        await sleep(1 * 1000)
       }
     }
   }
@@ -175,8 +175,8 @@ const getInformationToJoinNode = async (event, layer) => {
         if (idx === 59) {
           throw Error(`Could not get information of node in URL: ${urls[layer]}`)
         }
-        console.log(`Node ${url} is possibly not READY yet, waiting for 10s to try again (${idx + 1}/60)`)
-        await sleep(10 * 1000)
+        console.log(`Node ${url} is possibly not READY yet, waiting for 1s to try again (${idx + 1}/60)`)
+        await sleep(1 * 1000)
       }
     }
   }
