@@ -2,50 +2,6 @@ import moment from 'moment'
 import { LAYERS, NUMBER_OF_SNAPSHOTS_TO_MOVE_SINCE_LAST_ON_BE } from '../utils/types.js'
 import { sendCommand } from '../external/aws/ssm.js'
 import { sleep } from './shared.js'
-import { getLastMetagraphInfo } from './get_metagraph_info.js'
-
-const _movingSnapshotsNotSyncToGL0 = async (ssmClient, event, ec2InstancesIds) => {
-  const { file_system } = event.metagraph
-  const { lastSnapshotOrdinal } = await getLastMetagraphInfo(event)
-  const initialSnapshotToRemove = lastSnapshotOrdinal
-  const finalSnapshotToRemove = initialSnapshotToRemove + NUMBER_OF_SNAPSHOTS_TO_MOVE_SINCE_LAST_ON_BE
-
-  console.log(`Creating the mv_snapshot.sh script under metagraph-l0 directory`)
-  const bkpDirectoryName = `incremental_snapshot_bkp_${moment.utc().format('YYYY_MM_DD_HH_mm_ss')}`
-  const creatingCommands = [
-    `cd ${file_system.base_metagraph_l0_directory}`,
-    `mkdir -p data/${bkpDirectoryName}`,
-
-    `echo "# Set the source and target directories
-    source_dir="data/incremental_snapshot"
-    target_dir="data/${bkpDirectoryName}/"
-    # Use find to locate the files within the specified range
-    for i in \\$(seq \\$1 \\$2); do
-      source_file="\\$source_dir/\\$i"
-
-      # Check if the source file exists before attempting to move it
-      if [ -e "\\$source_file" ]; then
-          echo "Processing file with ID \\$source_file"
-          find \\$source_dir -mount -samefile \\$source_file -exec mv {} "\\$target_dir" \\;
-      else
-          echo "File \\$source_file does not exist."
-      fi
-    done" > mv_snapshots.sh`,
-
-    `sudo chmod +x mv_snapshots.sh`,
-  ]
-  await sendCommand(ssmClient, creatingCommands, ec2InstancesIds)
-  console.log(`Finished creating mv_snapshot.sh script`)
-
-  console.log(`Moving incremental snapshots on data/incremental_snapshot to data/${bkpDirectoryName} between: ${initialSnapshotToRemove} - ${finalSnapshotToRemove}`)
-  const commands = [
-    `cd ${file_system.base_metagraph_l0_directory}`,
-    `./mv_snapshots.sh ${initialSnapshotToRemove} ${finalSnapshotToRemove}`
-  ]
-
-  await sendCommand(ssmClient, commands, ec2InstancesIds)
-  console.log(`Finishing moving the snapshots`)
-}
 
 const killCurrentExecution = async (ssmClient, event, layer, ec2InstancesIds) => {
   const {
@@ -59,7 +15,6 @@ const killCurrentExecution = async (ssmClient, event, layer, ec2InstancesIds) =>
   if (layer === LAYERS.L0) {
     const commands = [`fuser -k ${metagraph_l0_public_port}/tcp`]
     await sendCommand(ssmClient, commands, ec2InstancesIds)
-    await _movingSnapshotsNotSyncToGL0(ssmClient, event, ec2InstancesIds)
     return
   }
 
@@ -110,9 +65,6 @@ const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
   ]
 
   await sendCommand(ssmClient, commands, ec2InstancesIds)
-
-  console.log('Waiting 10s to finish the compression...')
-  await sleep(10 * 1000)
 }
 
 const getLogsNames = () => {
