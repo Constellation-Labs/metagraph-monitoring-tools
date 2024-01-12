@@ -1,7 +1,7 @@
 {
   "metagraph": {
-    "id": ":metagraph_id",
-    "name": ":metagraph_name",
+    "id": "DAG0CyySf35ftDQDQBnd1bdQ9aPyUdacMghpnCuM",
+    "name": "DOR",
     "include_currency_l1_layer": true,
     "include_data_l1_layer": true,
     "file_system": {
@@ -21,35 +21,35 @@
       "data_l1_cli_port": 9002
     },
     "required_env_variables": {
-      "cl_app_env": "testnet",
+      "cl_app_env": "mainnet",
       "cl_collateral": 0
     },
-    "additional_metagraph_l0_env_variables": [],
+    "additional_metagraph_l0_env_variables": [
+      "METAGRAPH_L0_NODE_URL=http://54.191.143.191:7000/cluster/info",
+      "DATA_L1_NODE_URL=http://54.191.143.191:9000/cluster/info"
+    ],
     "additional_currency_l1_env_variables": [],
     "additional_data_l1_env_variables": []
   },
   "network": {
-    "name": "integrationnet|testnet|mainnet",
-    "gl0_node_ip": ":gl0_node_ip",
-    "gl0_node_id": ":gl0_node_id",
-    "gl0_node_port": ":gl0_node_port"
+    "name": "mainnet"
   },
   "aws": {
-    "region": ":aws_region",
+    "region": "us-west-2",
     "ec2": {
       "instances": {
         "genesis": {
-          "id": ":genesis_node_instance_id",
-          "ip": "genesis_node_instance_ip"
+          "id": "i-02cd28287c031457d",
+          "ip": "54.191.143.191"
         },
         "validators": [
           {
-            "id": ":validator_1_node_instance_id",
-            "ip": ":validator_1_node_instance_ip"
+            "id": "i-023598d60862a9575",
+            "ip": "54.213.58.75"
           },
           {
-            "id": ":validator_2_node_instance_id",
-            "ip": ":validator_2_node_instance_ip"
+            "id": "i-0a29153b8b04ab7c1",
+            "ip": "34.211.239.153"
           }
         ]
       }

@@ -1,0 +1,19 @@
+name: Deploy DOR Metagraph Monitor - Testnet
+
+on:
+  push:
+    branches:
+      - "deploy/dor-metagraph-testnet"
+jobs:
+  deploy-lattice-aws:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy DOR Metagraph Monitor - Testnet
+        uses: "./.github/templates/deploy"
+        with:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_LATTICE }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_LATTICE }}
+          AWS_REGION: ${{ secrets.AWS_REGION_LATTICE}}
+          AWS_LAMBDA_FUNCTION_NAME: MetagraphMonitor
