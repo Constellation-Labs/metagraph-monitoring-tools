@@ -1,6 +1,7 @@
 import { getKeys, sendCommand } from '../external/aws/ssm.js'
 import { saveLogs, killCurrentExecution } from '../shared/index.js'
-import { KEY_LAYERS, LAYERS } from '../utils/types.js'
+import { buildSeedlistInformation } from '../utils/build_seedlist_url.js'
+import { KEY_LAYERS, LAYERS, SEEDLIST_LAYERS } from '../utils/types.js'
 
 const startRollbackNodeL0 = async (ssmClient, event, rollbackNode, referenceSourceNode, logName, shouldKillCurrentExecution = true) => {
   if (shouldKillCurrentExecution) {
@@ -40,10 +41,15 @@ const startRollbackNodeL0 = async (ssmClient, event, rollbackNode, referenceSour
     envVariables.push(`export ${variable}`)
   }
 
+  const { url, file_name } = buildSeedlistInformation(event, SEEDLIST_LAYERS.ML0)
   const commands = [
     ...envVariables,
     `cd ${file_system.base_metagraph_l0_directory}`,
-    `nohup java -jar metagraph-l0.jar run-rollback --ip ${event.aws.ec2.instances.genesis.ip} > node-l0.log 2>&1 &`
+    `${url ? `wget -O ${file_name} ${url}` : ''}`,
+    `${url ?
+      `nohup java -jar metagraph-l0.jar run-rollback --ip ${event.aws.ec2.instances.genesis.ip} --seedlist ${file_name} > node-l0.log 2>&1 &` :
+      `nohup java -jar metagraph-l0.jar run-rollback --ip ${event.aws.ec2.instances.genesis.ip} > node-l0.log 2>&1 &`
+    }`
   ]
 
   await sendCommand(ssmClient, commands, [rollbackNode.id])
@@ -84,10 +90,15 @@ const startValidatorNodeL0 = async (ssmClient, event, logName, validator, refere
     envVariables.push(`export ${variable}`)
   }
 
+  const { url, file_name } = buildSeedlistInformation(event, SEEDLIST_LAYERS.ML0)
   const commands = [
     ...envVariables,
     `cd ${file_system.base_metagraph_l0_directory}`,
-    `nohup java -jar metagraph-l0.jar run-validator --ip ${validator.ip} > node-l0.log 2>&1 &`
+    `${url ? `wget -O ${file_name} ${url}` : ''}`,
+    `${url ?
+      `nohup java -jar metagraph-l0.jar run-validator --ip ${validator.ip} --seedlist ${file_name} > node-l0.log 2>&1 &` :
+      `nohup java -jar metagraph-l0.jar run-validator --ip ${validator.ip} > node-l0.log 2>&1 &`
+    }`
   ]
 
   await sendCommand(ssmClient, commands, [validator.id])
