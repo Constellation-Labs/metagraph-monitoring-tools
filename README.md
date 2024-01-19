@@ -1,7 +1,7 @@
 Metagraph Monitoring Tools
 ========================
 
-This project has been developed to monitor metagraphs and initiate a restart if necessary. We have a Lambda function dedicated to monitoring a metagraph. This monitoring can trigger two types of restarts: **FULL_CLUSTER** or **INDIVIDUAL_NODES**.
+This project has been developed to monitor metagraphs and initiate a restart if necessary. We have a Lambda function dedicated to monitoring each metagraph node individually as well as the snapshot generation process. The lambda can trigger two types of restarts: **FULL_CLUSTER** or **INDIVIDUAL_NODES**.
 
 ### Full Cluster Restart
 
