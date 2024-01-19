@@ -71,3 +71,8 @@ We need to create variables in the SSM Parameter Store, following this pattern:
 You should repeat the above parameters for your 3 instances. Additionally, there is a parameter in the SSM Parameter Store for Opsgenie integration, so you need to create the following parameter:
 
 `/metagraph-nodes/opsgenie-api-key`
+
+## Metagraphs Events Payloads
+- Locate the events corresponding to the current metagraphs supported by this monitoring tool in metagraphs-events-payload.
+- Keeping these files up-to-date is crucial.
+- Ensure that the content of these files is transmitted through AWS EventBridge.

@@ -166,7 +166,7 @@ const closeCurrentMetagraphRestartAlert = async (ssmClient, event) => {
   console.log(`Closing metagraph restart alert`)
   const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
   const alias = `${event.metagraph.id}_restart`
- 
+
   await closeRemoteAlert(alias, opsgenieApiKey)
   console.log(`Alert close`)
 }
