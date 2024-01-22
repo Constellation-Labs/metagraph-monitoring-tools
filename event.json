@@ -1,13 +1,14 @@
 {
   "metagraph": {
-    "id": "DAG5kfY9GoHF1CYaY8tuRJxmB3JSzAEARJEAkA2C",
-    "name": "DOR",
+    "id": "your_metagraph_id",
+    "name": "your_metagraph_name",
+    "version": "metagraph_version",
     "include_currency_l1_layer": true,
     "include_data_l1_layer": true,
     "file_system": {
-      "base_metagraph_l0_directory": "/home/ubuntu/code/metagraph-l0",
-      "base_currency_l1_directory": "/home/ubuntu/code/currency-l1",
-      "base_data_l1_directory": "/home/ubuntu/code/data-l1"
+      "base_metagraph_l0_directory": "your_metagraph_l0_directory",
+      "base_currency_l1_directory": "your_currency_l1_directory",
+      "base_data_l1_directory": "your_data_l1_directory"
     },
     "ports": {
       "metagraph_l0_public_port": 7000,
@@ -21,39 +22,52 @@
       "data_l1_cli_port": 9002
     },
     "required_env_variables": {
-      "cl_app_env": "integrationnet",
+      "cl_app_env": "integrationnet or mainnet",
       "cl_collateral": 0
     },
-    "additional_metagraph_l0_env_variables": [
-      "METAGRAPH_L0_NODE_URL=http://54.218.46.24:7000/cluster/info",
-      "DATA_L1_NODE_URL=http://54.218.46.24:9000/cluster/info"
-    ],
+    "additional_metagraph_l0_env_variables": [],
     "additional_currency_l1_env_variables": [],
-    "additional_data_l1_env_variables": []
+    "additional_data_l1_env_variables": [],
+    "seedlists": {
+      "location": "Github",
+      "ml0": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "ml0-testnet-seedlist"
+      },
+      "cl1": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "cl1-testnet-seedlist"
+      },
+      "dl1": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "dl1-testnet-seedlist"
+      }
+    }
   },
   "network": {
-    "name": "integrationnet"
+    "name": "integrationnet or mainnet"
   },
   "aws": {
-    "region": "us-west-2",
+    "region": "aws region",
     "ec2": {
       "instances": {
         "genesis": {
-          "id": "i-03b3276264675e661",
-          "ip": "54.218.46.24"
+          "id": "ec2_instance_id",
+          "ip": "ec2_instance_ip"
         },
         "validators": [
           {
-            "id": "i-074aabc2ebd03819b",
-            "ip": "34.212.237.118"
+            "id": "ec2_instance_id",
+            "ip": "ec2_instance_ip"
           },
           {
-            "id": "i-0cc80924a8124f3e6",
-            "ip": "34.219.123.201"
+            "id": "ec2_instance_id",
+            "ip": "ec2_instance_ip"
           }
         ]
       }
     }
   },
-  "force_metagraph_restart": false
+  "force_metagraph_restart": false,
+  "enable_opsgenie_alerts": true
 }

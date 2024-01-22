@@ -132,28 +132,30 @@ export const handler = async (event) => {
   const referenceSourceNode = await getReferenceSourceNodeFromNetwork(event)
   const metagraphId = event.metagraph.id
 
-  const currentMetagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)
-  const restartProgress = await getMetagraphRestartProgress(
-    ssmClient,
-    event,
-    currentMetagraphRestart,
-    referenceSourceNode
-  )
+  if (!event.force_metagraph_restart) {
+    const currentMetagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)
+    const restartProgress = await getMetagraphRestartProgress(
+      ssmClient,
+      event,
+      currentMetagraphRestart,
+      referenceSourceNode
+    )
 
-  if (restartProgress.restartState !== DYNAMO_RESTART_STATE.NEW) {
-    return {
-      statusCode: 200,
-      body: restartProgress.body,
+    if (restartProgress.restartState !== DYNAMO_RESTART_STATE.NEW) {
+      return {
+        statusCode: 200,
+        body: restartProgress.body,
+      }
     }
-  }
 
-  if (restartProgress.restartState === DYNAMO_RESTART_STATE.READY) {
-    await validateIfAllNodesAreReady(event)
-    await checkIfNewSnapshotsAreProducedAfterRestart(event)
+    if (restartProgress.restartState === DYNAMO_RESTART_STATE.READY) {
+      await validateIfAllNodesAreReady(event)
+      await checkIfNewSnapshotsAreProducedAfterRestart(event)
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify('Metagraph healthy, after restart'),
+      return {
+        statusCode: 200,
+        body: JSON.stringify('Metagraph healthy, after restart'),
+      }
     }
   }
 
