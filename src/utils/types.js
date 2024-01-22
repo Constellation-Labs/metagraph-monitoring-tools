@@ -10,6 +10,12 @@ const KEY_LAYERS = {
   DATA_L1: 'dl1'
 }
 
+const SEEDLIST_LAYERS = {
+  ML0: 'ml0',
+  CL1: 'cl1',
+  DL1: 'dl1'
+}
+
 const VALID_NETWORKS_TAGS_OPSGENIE = {
   mainnet: 'env:MainNet',
   integrationnet: 'env:IntegrationNet',
@@ -44,8 +50,6 @@ const CHECK_NODE_HEALTHY_LIMIT = 50
 const OPSGENIE_API_KEY_PATH = '/metagraph-nodes/opsgenie-api-key'
 
 const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 60
-
-const NUMBER_OF_SNAPSHOTS_TO_MOVE_SINCE_LAST_ON_BE = 100
 
 const NETWORK_NODES = {
   testnet: {
@@ -101,9 +105,14 @@ const NETWORK_NODES = {
   }
 }
 
+const SEEDLIST_EXTERNAL_STORAGE = {
+  GITHUB: 'Github'
+}
+
 export {
   LAYERS,
   KEY_LAYERS,
+  SEEDLIST_LAYERS,
   VALID_NETWORKS_TAGS_OPSGENIE,
   DATE_FORMAT,
   RESTART_REASONS,
@@ -114,5 +123,5 @@ export {
   NETWORK_NODES,
   OPSGENIE_API_KEY_PATH,
   ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES,
-  NUMBER_OF_SNAPSHOTS_TO_MOVE_SINCE_LAST_ON_BE
+  SEEDLIST_EXTERNAL_STORAGE
 }

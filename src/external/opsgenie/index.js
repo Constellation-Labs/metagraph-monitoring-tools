@@ -4,7 +4,7 @@ import { OPSGENIE_API_KEY_PATH, VALID_NETWORKS_TAGS_OPSGENIE, DYNAMO_RESTART_TYP
 
 const OPSGENIE_ALERT_URL = "https://api.opsgenie.com/v2/alerts"
 
-const buildValidatorsLogsURLs = (validators, prefix, port) => {
+const _buildValidatorsLogsURLs = (validators, prefix, port) => {
   const messages = []
   for (const validator of validators) {
     messages.push(`${prefix} - ${validator.ip}: http://${validator.ip}:${port}/node/info`)
@@ -13,7 +13,7 @@ const buildValidatorsLogsURLs = (validators, prefix, port) => {
   return messages.join('\n')
 }
 
-const buildValidatorsLogsInstances = (validators) => {
+const _buildValidatorsLogsInstances = (validators) => {
   const messages = []
   for (const validator of validators) {
     messages.push(`Instance ${validator.ip} (Validator) ID: ${validator.id}`)
@@ -23,7 +23,7 @@ const buildValidatorsLogsInstances = (validators) => {
   return messages.join('\n')
 }
 
-const buildStartedRestartAlertBody = (event, metagraphRestart) => {
+const _buildStartedRestartAlertBody = (event, metagraphRestart) => {
   const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
   const { name: networkName } = event.network
   const { genesis, validators } = event.aws.ec2.instances
@@ -38,26 +38,26 @@ const buildStartedRestartAlertBody = (event, metagraphRestart) => {
     
     You can check the metagraph nodes on these URLs:
     ML0 - Genesis: http://${genesis.ip}:${ports.metagraph_l0_public_port}/node/info
-    ${buildValidatorsLogsURLs(validators, 'ML0', ports.metagraph_l0_public_port)}
+    ${_buildValidatorsLogsURLs(validators, 'ML0', ports.metagraph_l0_public_port)}
 
     ${include_currency_l1_layer ?
         `
     CL1 - Genesis: http://${genesis.ip}:${ports.currency_l1_public_port}/node/info
-    ${buildValidatorsLogsURLs(validators, 'CL1', ports.currency_l1_public_port)}
+    ${_buildValidatorsLogsURLs(validators, 'CL1', ports.currency_l1_public_port)}
     `: ''
       }
 
     ${include_data_l1_layer ?
         `
     DL1 - Genesis: http://${genesis.ip}:${ports.data_l1_public_port}/node/info
-    ${buildValidatorsLogsURLs(validators, 'DL1', ports.data_l1_public_port)}
+    ${_buildValidatorsLogsURLs(validators, 'DL1', ports.data_l1_public_port)}
     `: ''
       }
     
     EC2 instances:
     Instance 1 (Genesis) ID: ${genesis.id}
     Instance 1 (Genesis) IP: ${genesis.ip}
-    ${buildValidatorsLogsInstances(validators)}
+    ${_buildValidatorsLogsInstances(validators)}
     `,
     alias: `${id}_restart`,
     actions: ["Metagraph", "Restart"],
@@ -72,7 +72,7 @@ const buildStartedRestartAlertBody = (event, metagraphRestart) => {
   }
 }
 
-const buildFailureRestartAlertBody = (event, errorMessage, metagraphRestart) => {
+const _buildFailureRestartAlertBody = (event, errorMessage, metagraphRestart) => {
   const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
   const { name: networkName } = event.network
   const { genesis, validators } = event.aws.ec2.instances
@@ -88,26 +88,26 @@ const buildFailureRestartAlertBody = (event, errorMessage, metagraphRestart) => 
     
     You can check the metagraph nodes on these URLs:
     ML0 - Genesis: http://${genesis.ip}:${ports.metagraph_l0_public_port}/node/info
-    ${buildValidatorsLogsURLs(validators, 'ML0', ports.metagraph_l0_public_port)}
+    ${_buildValidatorsLogsURLs(validators, 'ML0', ports.metagraph_l0_public_port)}
 
     ${include_currency_l1_layer ?
         `
     CL1 - Genesis: http://${genesis.ip}:${ports.currency_l1_public_port}/node/info
-    ${buildValidatorsLogsURLs(validators, 'CL1', ports.currency_l1_public_port)}
+    ${_buildValidatorsLogsURLs(validators, 'CL1', ports.currency_l1_public_port)}
     `: ''
       }
 
     ${include_data_l1_layer ?
         `
     DL1 - Genesis: http://${genesis.ip}:${ports.data_l1_public_port}/node/info
-    ${buildValidatorsLogsURLs(validators, 'DL1', ports.data_l1_public_port)}
+    ${_buildValidatorsLogsURLs(validators, 'DL1', ports.data_l1_public_port)}
     `: ''
       }
     
     EC2 instances:
     Instance 1 (Genesis) ID: ${genesis.id}
     Instance 1 (Genesis) IP: ${genesis.ip}
-    ${buildValidatorsLogsInstances(validators)}
+    ${_buildValidatorsLogsInstances(validators)}
     `,
     actions: ["Metagraph", "Restart"],
     alias: `${id}_failure_restarted`,
@@ -122,7 +122,7 @@ const buildFailureRestartAlertBody = (event, errorMessage, metagraphRestart) => 
   }
 }
 
-const createRemoteAlert = async (body, opsgenieApiKey) => {
+const _createRemoteAlert = async (body, opsgenieApiKey) => {
   try {
     await axios.post(OPSGENIE_ALERT_URL, body, {
       headers: {
@@ -135,7 +135,7 @@ const createRemoteAlert = async (body, opsgenieApiKey) => {
   }
 }
 
-const closeRemoteAlert = async (alias, opsgenieApiKey) => {
+const _closeRemoteAlert = async (alias, opsgenieApiKey) => {
   const body = {
     "user": "Monitoring Script",
     "source": "AWS Lambda",
@@ -154,29 +154,42 @@ const closeRemoteAlert = async (alias, opsgenieApiKey) => {
 }
 
 const createMetagraphRestartStartedAlert = async (ssmClient, event, metagraphRestart) => {
+  if (!event.enable_opsgenie_alerts) {
+    console.log('Opsgenie not enabled')
+    return
+  }
+
   console.log(`Creating Metagraph Restart Started Alert`)
   const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
-  const alertBody = buildStartedRestartAlertBody(event, metagraphRestart)
+  const alertBody = _buildStartedRestartAlertBody(event, metagraphRestart)
 
-  await createRemoteAlert(alertBody, opsgenieApiKey)
+  await _createRemoteAlert(alertBody, opsgenieApiKey)
   console.log(`Alert created`)
 }
 
 const closeCurrentMetagraphRestartAlert = async (ssmClient, event) => {
+  if (!event.enable_opsgenie_alerts) {
+    console.log('Opsgenie not enabled')
+    return
+  }
   console.log(`Closing metagraph restart alert`)
   const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
   const alias = `${event.metagraph.id}_restart`
- 
-  await closeRemoteAlert(alias, opsgenieApiKey)
+
+  await _closeRemoteAlert(alias, opsgenieApiKey)
   console.log(`Alert close`)
 }
 
 const createMetagraphRestartFailureAlert = async (ssmClient, event, errorMessage, metagraphRestart) => {
+  if (!event.enable_opsgenie_alerts) {
+    console.log('Opsgenie not enabled')
+    return
+  }
   console.log(`Creating Metagraph Restart Failure Alert`)
   const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
-  const alertBody = buildFailureRestartAlertBody(event, errorMessage, metagraphRestart)
+  const alertBody = _buildFailureRestartAlertBody(event, errorMessage, metagraphRestart)
 
-  await createRemoteAlert(alertBody, opsgenieApiKey)
+  await _createRemoteAlert(alertBody, opsgenieApiKey)
   console.log(`Alert created`)
 }
 

@@ -1,13 +1,14 @@
 {
   "metagraph": {
-    "id": "DAG4dWrdALPQmvF5UBpuXrqdkMHea1H5f7rjb4qY",
-    "name": "Biforex",
+    "id": "your_metagraph_id",
+    "name": "your_metagraph_name",
+    "version": "metagraph_version",
     "include_currency_l1_layer": true,
-    "include_data_l1_layer": false,
+    "include_data_l1_layer": true,
     "file_system": {
-      "base_metagraph_l0_directory": "/home/ubuntu/code/metagraph-l0",
-      "base_currency_l1_directory": "/home/ubuntu/code/currency-l1",
-      "base_data_l1_directory": "/home/ubuntu/code/data-l1"
+      "base_metagraph_l0_directory": "your_metagraph_l0_directory",
+      "base_currency_l1_directory": "your_currency_l1_directory",
+      "base_data_l1_directory": "your_data_l1_directory"
     },
     "ports": {
       "metagraph_l0_public_port": 7000,
@@ -21,36 +22,52 @@
       "data_l1_cli_port": 9002
     },
     "required_env_variables": {
-      "cl_app_env": "integrationnet",
+      "cl_app_env": "integrationnet or mainnet",
       "cl_collateral": 0
     },
     "additional_metagraph_l0_env_variables": [],
     "additional_currency_l1_env_variables": [],
-    "additional_data_l1_env_variables": []
+    "additional_data_l1_env_variables": [],
+    "seedlists": {
+      "location": "Github",
+      "ml0": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "ml0-testnet-seedlist"
+      },
+      "cl1": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "cl1-testnet-seedlist"
+      },
+      "dl1": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "dl1-testnet-seedlist"
+      }
+    }
   },
   "network": {
-    "name": "integrationnet"
+    "name": "integrationnet or mainnet"
   },
   "aws": {
-    "region": "us-west-1",
+    "region": "aws region",
     "ec2": {
       "instances": {
         "genesis": {
-          "id": "i-00e6ff6893a3fcba5",
-          "ip": "18.144.39.83"
+          "id": "ec2_instance_id",
+          "ip": "ec2_instance_ip"
         },
         "validators": [
           {
-            "id": "i-089c6076393c9445a",
-            "ip": "13.56.11.204"
+            "id": "ec2_instance_id",
+            "ip": "ec2_instance_ip"
           },
           {
-            "id": "i-09483e068ef6664a7",
-            "ip": "13.56.224.220"
+            "id": "ec2_instance_id",
+            "ip": "ec2_instance_ip"
           }
         ]
       }
     }
   },
-  "force_metagraph_restart": false
+  "force_metagraph_restart": false,
+  "enable_opsgenie_alerts": true
 }

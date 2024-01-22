@@ -1,7 +1,6 @@
 import moment from 'moment'
-import { LAYERS, NUMBER_OF_SNAPSHOTS_TO_MOVE_SINCE_LAST_ON_BE } from '../utils/types.js'
+import { LAYERS } from '../utils/types.js'
 import { sendCommand } from '../external/aws/ssm.js'
-import { sleep } from './shared.js'
 
 const killCurrentExecution = async (ssmClient, event, layer, ec2InstancesIds) => {
   const {
