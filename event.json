@@ -1,1 +1,73 @@
-{}
+{
+  "metagraph": {
+    "id": "your_metagraph_id",
+    "name": "your_metagraph_name",
+    "version": "metagraph_version",
+    "include_currency_l1_layer": true,
+    "include_data_l1_layer": true,
+    "file_system": {
+      "base_metagraph_l0_directory": "your_metagraph_l0_directory",
+      "base_currency_l1_directory": "your_currency_l1_directory",
+      "base_data_l1_directory": "your_data_l1_directory"
+    },
+    "ports": {
+      "metagraph_l0_public_port": 7000,
+      "metagraph_l0_p2p_port": 7001,
+      "metagraph_l0_cli_port": 7002,
+      "currency_l1_public_port": 8000,
+      "currency_l1_p2p_port": 8001,
+      "currency_l1_cli_port": 8002,
+      "data_l1_public_port": 9000,
+      "data_l1_p2p_port": 9001,
+      "data_l1_cli_port": 9002
+    },
+    "required_env_variables": {
+      "cl_app_env": "integrationnet or mainnet",
+      "cl_collateral": 0
+    },
+    "additional_metagraph_l0_env_variables": [],
+    "additional_currency_l1_env_variables": [],
+    "additional_data_l1_env_variables": [],
+    "seedlists": {
+      "location": "Github",
+      "ml0": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "ml0-testnet-seedlist"
+      },
+      "cl1": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "cl1-testnet-seedlist"
+      },
+      "dl1": {
+        "base_url": "https://github.com/your_repo/releases/download",
+        "file_name": "dl1-testnet-seedlist"
+      }
+    }
+  },
+  "network": {
+    "name": "integrationnet or mainnet"
+  },
+  "aws": {
+    "region": "aws region",
+    "ec2": {
+      "instances": {
+        "genesis": {
+          "id": "ec2_instance_id",
+          "ip": "ec2_instance_ip"
+        },
+        "validators": [
+          {
+            "id": "ec2_instance_id",
+            "ip": "ec2_instance_ip"
+          },
+          {
+            "id": "ec2_instance_id",
+            "ip": "ec2_instance_ip"
+          }
+        ]
+      }
+    }
+  },
+  "force_metagraph_restart": false,
+  "enable_opsgenie_alerts": true
+}
