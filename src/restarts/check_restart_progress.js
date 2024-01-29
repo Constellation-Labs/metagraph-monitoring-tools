@@ -14,9 +14,9 @@ const checkFullClusterRestart = async (event, metagraphId, currentMetagraphResta
   const node3 = event.aws.ec2.instances.validators[1]
   const { ports } = event.metagraph
 
-  const node1Ready = await checkIfNodeIsReady(node1.ip, ports.metagraph_l0_public_port)
-  const node2Ready = await checkIfNodeIsReady(node2.ip, ports.metagraph_l0_public_port)
-  const node3Ready = await checkIfNodeIsReady(node3.ip, ports.metagraph_l0_public_port)
+  const { nodeIsReady: node1Ready } = await checkIfNodeIsReady(node1.ip, ports.metagraph_l0_public_port)
+  const { nodeIsReady: node2Ready } = await checkIfNodeIsReady(node2.ip, ports.metagraph_l0_public_port)
+  const { nodeIsReady: node3Ready } = await checkIfNodeIsReady(node3.ip, ports.metagraph_l0_public_port)
 
   if (node1Ready && node2Ready && node3Ready) {
     console.log('All nodes are READY')
@@ -29,7 +29,10 @@ const checkFullClusterRestart = async (event, metagraphId, currentMetagraphResta
   }
 
   console.log(`Still restarting`)
-  return currentMetagraphRestart
+  return {
+    metagraphRestart: currentMetagraphRestart,
+    successExecution: true
+  }
 }
 
 const checkIndividualNodesRestart = async (metagraphId, currentMetagraphRestart) => {
@@ -41,23 +44,41 @@ const checkIndividualNodesRestart = async (metagraphId, currentMetagraphRestart)
 
   const individualNodesIpsWithPortsAsList = individualNodesIpsWithPorts.split(',')
   const nodesReady = []
+  const nodesFailureExecution = []
 
   console.log(`Starting to check the status of nodes: ${JSON.stringify(individualNodesIpsWithPortsAsList)}`)
   for (const currentNodeIpAndPort of individualNodesIpsWithPortsAsList) {
     const node = currentNodeIpAndPort.split(':')
-    const nodeReady = await checkIfNodeIsReady(node[0], node[1])
-    if (nodeReady) {
+    const { nodeIsReady, successCheck } = await checkIfNodeIsReady(node[0], node[1])
+    if (nodeIsReady && successCheck) {
       nodesReady.push(currentNodeIpAndPort)
+    }
+    if (!successCheck) {
+      nodesFailureExecution.push(currentNodeIpAndPort)
     }
   }
 
   if (nodesReady.length === individualNodesIpsWithPortsAsList.length) {
     console.log(`All nodes READY`)
-    return await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, '', individualNodesIpsWithPorts)
+    return {
+      metagraphRestart: await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, '', individualNodesIpsWithPorts),
+      successExecution: true
+    }
+  }
+
+  if (nodesFailureExecution.length > 0) {
+    console.log(`Failure checking node`)
+    return {
+      metagraphRestart: currentMetagraphRestart,
+      successExecution: false
+    }
   }
 
   console.log(`Still restarting`)
-  return currentMetagraphRestart
+  return {
+    metagraphRestart: currentMetagraphRestart,
+    successExecution: true
+  }
 }
 
 const checkRestartStatus = async (event, networkName, currentMetagraphRestart) => {
@@ -79,7 +100,16 @@ const checkRestartStatus = async (event, networkName, currentMetagraphRestart) =
 
 const checkMetagraphRestartProgress = async (event, metagraphId, oldMetagraphRestart) => {
   console.log(`Getting current restart status`)
-  const metagraphRestart = await checkRestartStatus(event, metagraphId, oldMetagraphRestart)
+  const { metagraphRestart, successExecution } = await checkRestartStatus(event, metagraphId, oldMetagraphRestart)
+  if (!successExecution) {
+    return {
+      statusCode: 400,
+      finishCurrentDynamoDBMetagraphRestart: true,
+      message: `Failure checking current restart, triggering a new...`,
+      metagraphRestart
+    }
+  }
+
   if (metagraphRestart.state === DYNAMO_RESTART_STATE.READY) {
     return {
       statusCode: 200,
@@ -176,7 +206,7 @@ const getMetagraphRestartProgress = async (ssmClient, event, currentMetagraphRes
     metagraphRestartProgress.metagraphRestart
   )
 
-  const metagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)
+  const metagraphRestart = await getMetagraphRestartOrCreateNew(event.metagraph.id)
   return {
     status: 200,
     restartState: DYNAMO_RESTART_STATE.NEW,

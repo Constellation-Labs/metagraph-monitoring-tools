@@ -10,13 +10,13 @@ const checkIfNodeIsReady = async (nodeIp, nodePort) => {
     const nodeState = response.data.state
     console.log(`Current state of node ${nodeIp}:${nodePort}: ${nodeState}`)
     if (nodeState === 'Ready') {
-      return true
+      return { nodeIsReady: true, successCheck: true }
     }
 
-    return false
+    return { nodeIsReady: false, successCheck: true }
   } catch (e) {
     console.log(`Could not get response of node: ${nodeIp}`)
-    return false
+    return { nodeIsReady: false, successCheck: false }
   }
 }
 
