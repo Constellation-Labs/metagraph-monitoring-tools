@@ -40,7 +40,7 @@ const checkIfValidatorsStarted = async (event, layer) => {
         console.log(`Node started and healthy`)
         return
       } catch (e) {
-        if (idx === 10) {
+        if (idx === CHECK_NODE_HEALTHY_LIMIT) {
           throw Error(`Could not get information of node in URL: ${url}`)
         }
         console.log(`Node is possibly not READY yet, waiting for 1s to try again (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
@@ -55,9 +55,11 @@ const checkIfNodeStarted = async (url) => {
     try {
       await axios.get(url)
       console.log(`Node started`)
+      console.log(`Waiting 10 seconds before continuing...`)
+      await sleep(10 * 1000)
       return
     } catch (e) {
-      if (idx === 10) {
+      if (idx === CHECK_NODE_HEALTHY_LIMIT) {
         throw Error(`Could not get information of node in URL: ${url}`)
       }
       console.log(`Node possibly not started yet, waiting for 1s to try again (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
