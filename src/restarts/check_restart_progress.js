@@ -20,12 +20,18 @@ const checkFullClusterRestart = async (event, metagraphId, currentMetagraphResta
 
   if (node1Ready && node2Ready && node3Ready) {
     console.log('All nodes are READY')
-    return await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, referenceNodeIp)
+    return {
+      metagraphRestart: await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, referenceNodeIp),
+      successExecution: true
+    }
   }
 
   if ((node1Ready || node2Ready || node3Ready) && state === DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS) {
     console.log('Initial node ready to JOIN')
-    return await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY_TO_JOIN, restartType, restartReason, referenceNodeIp)
+    return {
+      metagraphRestart: await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY_TO_JOIN, restartType, restartReason, referenceNodeIp),
+      successExecution: true
+    }
   }
 
   console.log(`Still restarting`)
@@ -86,7 +92,10 @@ const checkRestartStatus = async (event, networkName, currentMetagraphRestart) =
   const metagraphId = event.metagraph.id
 
   if (state === DYNAMO_RESTART_STATE.NEW) {
-    return currentMetagraphRestart
+    return {
+      metagraphRestart: currentMetagraphRestart,
+      successExecution: true
+    }
   }
   if (restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
     return await checkFullClusterRestart(event, metagraphId, currentMetagraphRestart)
@@ -163,7 +172,7 @@ const getMetagraphRestartProgress = async (ssmClient, event, currentMetagraphRes
   const { state, restartType, restartReason, referenceNodeIp } = metagraphRestartProgress.metagraphRestart
   if (state === DYNAMO_RESTART_STATE.READY_TO_JOIN && restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
     console.log(`Metagraph is READY_TO_JOIN triggering finishMetagraphRollback`)
-    
+
     const logsNames = getLogsNames()
     await finishMetagraphRollback(ssmClient, event, logsNames, referenceSourceNode)
 
