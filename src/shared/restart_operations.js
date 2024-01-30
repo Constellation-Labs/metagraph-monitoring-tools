@@ -58,7 +58,7 @@ const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
   const commands = [
     directory[layer],
     `mkdir -p ../restart_logs`,
-    `zip -r ${logName} logs/app.log`,
+    `zip -r ${logName} logs`,
     `mv ${logName} ../restart_logs`,
     `rm -r logs`
   ]
