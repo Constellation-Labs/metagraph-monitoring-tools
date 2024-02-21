@@ -27,7 +27,7 @@ const DATE_FORMAT = "YYYY-MM-DDTHH:mm:ssZ"
 const RESTART_REASONS = {
   STOP_PRODUCING_SNAPSHOTS: "Metagraph stopped producing snapshots",
   FORCE_METAGRAPH_RESTART: "Force metagraph restart provided",
-  UNHEALTHY_CLUSTER: "One of the clusters are unhealthy (less than 3 nodes or nodes with not Ready state)"
+  UNHEALTHY_NODES: "Individual nodes are unhealthy"
 }
 
 const DYNAMO_RESTART_TYPES = {
@@ -109,6 +109,9 @@ const SEEDLIST_EXTERNAL_STORAGE = {
   GITHUB: 'Github'
 }
 
+const NUMBER_OF_SNAPSHOTS_TO_FETCH_DATA_TRANSACTIONS = 10
+const MAX_MINUTES_WITHOUT_NEW_SNAPSHOTS = 3
+
 export {
   LAYERS,
   KEY_LAYERS,
@@ -123,5 +126,7 @@ export {
   NETWORK_NODES,
   OPSGENIE_API_KEY_PATH,
   ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES,
-  SEEDLIST_EXTERNAL_STORAGE
+  SEEDLIST_EXTERNAL_STORAGE,
+  NUMBER_OF_SNAPSHOTS_TO_FETCH_DATA_TRANSACTIONS,
+  MAX_MINUTES_WITHOUT_NEW_SNAPSHOTS
 }

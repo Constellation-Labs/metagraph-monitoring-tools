@@ -1,8 +1,14 @@
 import moment from 'moment'
 import { LAYERS } from '../utils/types.js'
 import { sendCommand } from '../external/aws/ssm.js'
+import { sleep } from './shared.js'
 
-const killCurrentExecution = async (ssmClient, event, layer, ec2InstancesIds) => {
+const killCurrentExecution = async (
+  ssmClient,
+  event,
+  layer,
+  ec2InstancesIds
+) => {
   const {
     metagraph_l0_public_port,
     currency_l1_public_port,
@@ -10,7 +16,7 @@ const killCurrentExecution = async (ssmClient, event, layer, ec2InstancesIds) =>
   } = event.metagraph.ports
 
   console.log(`Stopping ${layer} on ${JSON.stringify(ec2InstancesIds)}`)
-  
+
   if (layer === LAYERS.L0) {
     const commands = [`fuser -k ${metagraph_l0_public_port}/tcp`]
     await sendCommand(ssmClient, commands, ec2InstancesIds)
@@ -30,7 +36,13 @@ const killCurrentExecution = async (ssmClient, event, layer, ec2InstancesIds) =>
   }
 }
 
-const joinNodeToCluster = async (ssmClient, event, layer, nodeInformation, ec2InstancesIds) => {
+const joinNodeToCluster = async (
+  ssmClient,
+  event,
+  layer,
+  nodeInformation,
+  ec2InstancesIds
+) => {
   const { nodeId, nodeHost, nodeP2pPort } = nodeInformation
   const { ports } = event.metagraph
 
@@ -46,7 +58,13 @@ const joinNodeToCluster = async (ssmClient, event, layer, nodeInformation, ec2In
   await sendCommand(ssmClient, commands, ec2InstancesIds)
 }
 
-const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
+const saveLogs = async (
+  ssmClient,
+  event,
+  logName,
+  layer,
+  ec2InstancesIds
+) => {
   console.log(`Saving logs ${layer} nodes: ${JSON.stringify(ec2InstancesIds)}`)
   const { file_system } = event.metagraph
   const directory = {
@@ -58,12 +76,14 @@ const saveLogs = async (ssmClient, event, logName, layer, ec2InstancesIds) => {
   const commands = [
     directory[layer],
     `mkdir -p ../restart_logs`,
-    `zip -r ${logName} logs/app.log`,
+    `zip -r ${logName} logs`,
     `mv ${logName} ../restart_logs`,
     `rm -r logs`
   ]
 
   await sendCommand(ssmClient, commands, ec2InstancesIds)
+  console.log(`Waiting 10s to compress logs and store...`)
+  await sleep(10 * 1000)
 }
 
 const getLogsNames = () => {
@@ -80,17 +100,9 @@ const getLogsNames = () => {
   }
 }
 
-const groupBy = function (xs, key) {
-  return xs.reduce(function (rv, x) {
-    (rv[x[key]] = rv[x[key]] || []).push(x);
-    return rv;
-  }, {});
-};
-
 export {
   killCurrentExecution,
   joinNodeToCluster,
   saveLogs,
-  getLogsNames,
-  groupBy
+  getLogsNames
 }

@@ -1,9 +1,17 @@
 import { getKeys, sendCommand } from '../external/aws/ssm.js'
-import { saveLogs, killCurrentExecution } from '../shared/index.js'
+import { killCurrentExecution, saveLogs } from '../shared/restart_operations.js'
 import { buildSeedlistInformation } from '../utils/build_seedlist_url.js'
 import { KEY_LAYERS, LAYERS, SEEDLIST_LAYERS } from '../utils/types.js'
 
-const startInitialValidatorNodeDataL1 = async (ssmClient, event, logName, mL0NodeId, rollbackNode, referenceSourceNode, shouldKillCurrentExecution = true) => {
+const startInitialValidatorNodeDataL1 = async (
+  ssmClient,
+  event,
+  logName,
+  mL0NodeId,
+  rollbackNode,
+  referenceSourceNode,
+  shouldKillCurrentExecution = true
+) => {
   if (shouldKillCurrentExecution) {
     await killCurrentExecution(ssmClient, event, LAYERS.DATA_L1, [rollbackNode.id])
   }
@@ -59,7 +67,15 @@ const startInitialValidatorNodeDataL1 = async (ssmClient, event, logName, mL0Nod
   await sendCommand(ssmClient, commands, [rollbackNode.id])
 }
 
-const startValidatorNodeDataL1 = async (ssmClient, event, logName, mL0NodeId, validator, referenceSourceNode, shouldKillCurrentExecution = true) => {
+const startValidatorNodeDataL1 = async (
+  ssmClient,
+  event,
+  logName,
+  mL0NodeId,
+  validator,
+  referenceSourceNode,
+  shouldKillCurrentExecution = true
+) => {
   if (shouldKillCurrentExecution) {
     await killCurrentExecution(ssmClient, event, LAYERS.DATA_L1, [validator.id])
   }
@@ -115,4 +131,7 @@ const startValidatorNodeDataL1 = async (ssmClient, event, logName, mL0NodeId, va
   await sendCommand(ssmClient, commands, [validator.id])
 }
 
-export { startInitialValidatorNodeDataL1, startValidatorNodeDataL1 }
+export {
+  startInitialValidatorNodeDataL1,
+  startValidatorNodeDataL1
+}

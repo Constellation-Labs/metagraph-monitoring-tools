@@ -1,23 +1,24 @@
 import { SSMClient } from '@aws-sdk/client-ssm'
 import moment from 'moment'
-import {
-  getLastMetagraphInfo,
-  checkIfAllNodesAreReady,
-  sleep,
-  getAllUnhealthyNodes,
-  getLogsNames,
-  groupBy,
-  getReferenceSourceNode
-} from './src/shared/index.js'
-import { LAYERS, RESTART_REASONS, DYNAMO_RESTART_STATE, DYNAMO_RESTART_TYPES } from './src/utils/types.js'
+import { LAYERS, RESTART_REASONS, DYNAMO_RESTART_STATE, DYNAMO_RESTART_TYPES, MAX_MINUTES_WITHOUT_NEW_SNAPSHOTS } from './src/utils/types.js'
 import { deleteMetagraphRestart, getMetagraphRestartOrCreateNew, upsertMetagraphRestart } from './src/external/aws/dynamo.js'
 import { startMetagraphRollback } from './src/restarts/full_cluster.js'
 import { restartIndividualNode } from './src/restarts/individual_node.js'
-import { createMetagraphRestartFailureAlert, createMetagraphRestartStartedAlert } from './src/external/opsgenie/index.js'
-import { getMetagraphRestartProgress } from './src/restarts/check_restart_progress.js'
+import { closeCurrentMetagraphRestartAlert, closeFailedMetagraphRestartAlert, createMetagraphRestartFailureAlert, createMetagraphRestartStartedAlert } from './src/external/opsgenie/index.js'
+import { checkCurrentMetagraphRestart } from './src/restarts/check_restart_progress.js'
 import { restartIndividualCluster } from './src/restarts/individual_cluster.js'
+import { checkUnhealthyNodes } from './src/restart_conditions/unhealthy_nodes.js'
+import { checkDataL1TransactionsStopped } from './src/restart_conditions/data_l1_transactions_stopped.js'
+import { checkIfForceRestartIsProvided } from './src/restart_conditions/force_restart.js'
+import { checkIfSnapshotsStopped } from './src/restart_conditions/snapshots_stopped.js'
+import { getLastMetagraphInfo, getReferenceSourceNode } from './src/shared/get_metagraph_info.js'
+import { sleep } from './src/shared/shared.js'
+import { checkIfAllNodesAreReady } from './src/shared/check_nodes_health.js'
+import { getLogsNames } from './src/shared/restart_operations.js'
 
-const validateIfAllNodesAreReady = async (event) => {
+const _validateIfAllNodesAreReady = async (
+  event
+) => {
   console.log(`Starting validation to check if all nodes are ready`)
 
   const promises = []
@@ -36,13 +37,15 @@ const validateIfAllNodesAreReady = async (event) => {
   console.log(`All nodes are ready\n\n`)
 }
 
-const checkIfNewSnapshotsAreProducedAfterRestart = async (event) => {
+const _checkIfNewSnapshotsAreProducedAfterRestart = async (
+  event
+) => {
   console.log("Checking if new snapshots was produced after restart. Waiting 10s ...")
   await sleep(10 * 1000)
   const { lastSnapshotTimestamp } = await getLastMetagraphInfo(event)
 
   const lastSnapshotTimestampDiff = moment.utc().diff(lastSnapshotTimestamp, 'minutes')
-  if (lastSnapshotTimestampDiff > 4) {
+  if (lastSnapshotTimestampDiff > MAX_MINUTES_WITHOUT_NEW_SNAPSHOTS) {
     await deleteMetagraphRestart(event.metagraph.id)
     throw Error("Snapshots keep not being produced even after restarting, take a look at the instances")
   }
@@ -50,72 +53,44 @@ const checkIfNewSnapshotsAreProducedAfterRestart = async (event) => {
   console.log(`New snapshots were produced`)
 }
 
-const getMetagraphRestartType = async (event, lastSnapshotTimestamp) => {
-  console.log(`Starting to get the metagraph restart type`)
-
-  if (event.force_metagraph_restart) {
+const _getMetagraphRestartType = async (
+  event
+) => {
+  const forceRestartCheck = await checkIfForceRestartIsProvided(event)
+  if (forceRestartCheck) {
     console.log(`Restarting FULL CLUSTER: Force metagraph restart provided`)
-    await deleteMetagraphRestart(event.metagraph.id)
-    return {
-      restartType: DYNAMO_RESTART_TYPES.FULL_CLUSTER,
-      reason: RESTART_REASONS.FORCE_METAGRAPH_RESTART,
-      unhealthyNodes: {}
-    }
+    return forceRestartCheck
   }
 
-  const lastSnapshotTimestampDiff = moment.utc().diff(lastSnapshotTimestamp, 'minutes')
-  if (lastSnapshotTimestampDiff > 3) {
+  const snapshotStoppedCheck = await checkIfSnapshotsStopped(event)
+  if (snapshotStoppedCheck) {
     console.log(`Restart type FULL CLUSTER: Snapshots stopped being produced`)
-    return {
-      restartType: DYNAMO_RESTART_TYPES.FULL_CLUSTER,
-      reason: RESTART_REASONS.STOP_PRODUCING_SNAPSHOTS,
-      unhealthyNodes: {}
-    }
+    return snapshotStoppedCheck
   }
 
-  console.log(`Snapshots are being producing normally, last snapshot timestamp: ${lastSnapshotTimestamp}`)
+  const unhealthyNodesCheck = await checkUnhealthyNodes(event)
+  if (unhealthyNodesCheck) {
+    console.log(`Unhealthy nodes detected, starting a restart`)
+    return unhealthyNodesCheck
+  }
 
-  const unhealthyNodes = await getAllUnhealthyNodes(event)
-  if (unhealthyNodes.length > 0) {
-    const unhealthyNodesGroupedByLayer = groupBy(unhealthyNodes, 'layer')
-    const unhealthyMetagraphL0 = unhealthyNodesGroupedByLayer[LAYERS.L0] ?? []
-    const unhealthyCurrencyL1 = unhealthyNodesGroupedByLayer[LAYERS.CURRENCY_L1] ?? []
-    const unhealthyDataL1 = unhealthyNodesGroupedByLayer[LAYERS.DATA_L1] ?? []
-
-    if (unhealthyNodes.length === 9 || unhealthyMetagraphL0.length === 3) {
-      console.log(`Restart type FULL CLUSTER: Unhealthy clusters. ML0: ${JSON.stringify(unhealthyMetagraphL0)}, CL1: ${JSON.stringify(unhealthyCurrencyL1)}, DL1: ${JSON.stringify(unhealthyDataL1)}`)
-      return {
-        restartType: DYNAMO_RESTART_TYPES.FULL_CLUSTER,
-        reason: RESTART_REASONS.UNHEALTHY_CLUSTER,
-        unhealthyNodes: {
-          unhealthyMetagraphL0,
-          unhealthyCurrencyL1,
-          unhealthyDataL1
-        }
-      }
-    }
-
-    console.log(`Restart type INDIVIDUAL NODES: Unhealthy clusters. ML0: ${JSON.stringify(unhealthyMetagraphL0)}, CL1: ${JSON.stringify(unhealthyCurrencyL1)}, DL1: ${JSON.stringify(unhealthyDataL1)}`)
-    return {
-      restartType: DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES,
-      reason: RESTART_REASONS.UNHEALTHY_CLUSTER,
-      unhealthyNodes: {
-        unhealthyMetagraphL0,
-        unhealthyCurrencyL1,
-        unhealthyDataL1
-      }
-    }
+  const dataL1TransactionsStoppedCheck = await checkDataL1TransactionsStopped(event)
+  if (dataL1TransactionsStoppedCheck) {
+    console.log(`Restart type FULL LAYER: Data L1 transactions stopped`)
+    return dataL1TransactionsStoppedCheck
   }
 
   console.log(`Restart type NOT RESTART: Metagraph healthy`)
   return {
     restartType: DYNAMO_RESTART_TYPES.NOT_RESTART,
-    reason: '',
+    reason: 'Metagraph healthy',
     unhealthyNodes: {}
   }
 }
 
-const getReferenceSourceNodeFromNetwork = async (event) => {
+const _getReferenceSourceNodeFromNetwork = async (
+  event
+) => {
   console.log(`Getting reference source node from network`)
   const referenceSourceNode = await getReferenceSourceNode(event)
   if (!referenceSourceNode) {
@@ -127,52 +102,64 @@ const getReferenceSourceNodeFromNetwork = async (event) => {
   return referenceSourceNode
 }
 
-export const handler = async (event) => {
-  const ssmClient = new SSMClient({ region: event.aws.region })
-  const referenceSourceNode = await getReferenceSourceNodeFromNetwork(event)
+const _handleRestartMetagraph = async (
+  event,
+  ssmClient
+) => {
   const metagraphId = event.metagraph.id
 
-  if (!event.force_metagraph_restart) {
-    const currentMetagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)
-    const restartProgress = await getMetagraphRestartProgress(
+  console.log(`Starting the restart script`)
+
+  console.log(`Getting the current metagraph restart`)
+  const currentMetagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)
+
+  console.log(`Getting the reference source node`)
+  const referenceSourceNode = await _getReferenceSourceNodeFromNetwork(event)
+
+  console.log(`Getting possible metagraph restart type`)
+  const metagraphRestartType = await _getMetagraphRestartType(event)
+
+  if (
+    !(currentMetagraphRestart.restartType === DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES && metagraphRestartType.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) &&
+    currentMetagraphRestart.state !== DYNAMO_RESTART_STATE.NEW
+  ) {
+    console.log(`Checking current metagraph restart`)
+    const { closeOpsgenieAlerts, deleteCurrentRestart, restartState, message } = await checkCurrentMetagraphRestart(
       ssmClient,
       event,
-      currentMetagraphRestart,
-      referenceSourceNode
-    )
+      referenceSourceNode,
+      currentMetagraphRestart
+    );
 
-    if (restartProgress.restartState !== DYNAMO_RESTART_STATE.NEW) {
-      return {
-        statusCode: 200,
-        body: restartProgress.body,
-      }
+    if (restartState === DYNAMO_RESTART_STATE.READY) {
+      console.log(`Current restart READY, validating the nodes`)
+      await _validateIfAllNodesAreReady(event);
+      console.log(`All nodes are READY`)
+
+      await _checkIfNewSnapshotsAreProducedAfterRestart(event);
     }
 
-    if (restartProgress.restartState === DYNAMO_RESTART_STATE.READY) {
-      await validateIfAllNodesAreReady(event)
-      await checkIfNewSnapshotsAreProducedAfterRestart(event)
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify('Metagraph healthy, after restart'),
-      }
+    return {
+      closeOpsgenieAlerts,
+      deleteCurrentRestart,
+      message
     }
   }
 
   try {
-    const { lastSnapshotTimestamp } = await getLastMetagraphInfo(event)
-    const metagraphRestartType = await getMetagraphRestartType(event, lastSnapshotTimestamp)
+    const { l0LogName, cl1LogName, dl1LogName } = getLogsNames()
     if (metagraphRestartType.restartType === DYNAMO_RESTART_TYPES.NOT_RESTART) {
+      console.log(`Restart Type: ${DYNAMO_RESTART_TYPES.NOT_RESTART}, skipping restart!`)
       return {
-        statusCode: 200,
-        body: JSON.stringify('Metagraph healthy, ignoring restart!'),
+        closeOpsgenieAlerts: true,
+        deleteCurrentRestart: true,
+        message: metagraphRestartType.reason
       }
     }
 
-    const logsNames = getLogsNames()
-
     if (metagraphRestartType.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
-      await startMetagraphRollback(ssmClient, event, logsNames.l0LogName, referenceSourceNode)
+      console.log(`Restart Type: ${DYNAMO_RESTART_TYPES.FULL_CLUSTER}, triggering restart!`)
+      await startMetagraphRollback(ssmClient, event, l0LogName, referenceSourceNode)
       const metagraphRestart = await upsertMetagraphRestart(
         metagraphId,
         DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS,
@@ -183,64 +170,80 @@ export const handler = async (event) => {
 
       await createMetagraphRestartStartedAlert(ssmClient, event, metagraphRestart)
       return {
-        statusCode: 200,
-        body: JSON.stringify(RESTART_REASONS.STOP_PRODUCING_SNAPSHOTS),
-      }
-
-    }
-
-    if (metagraphRestartType.restartType === DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES) {
-      const unhealthyNodes = [...metagraphRestartType.unhealthyNodes.unhealthyMetagraphL0]
-      const unhealthyClusters = []
-      if (
-        metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1 &&
-        metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1.length === 3
-      ) {
-        await restartIndividualCluster(ssmClient, event, logsNames.cl1LogName, LAYERS.CURRENCY_L1, referenceSourceNode)
-        unhealthyClusters.push(...metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1)
-      } else {
-        unhealthyNodes.push(...metagraphRestartType.unhealthyNodes.unhealthyCurrencyL1)
-      }
-
-      if (
-        metagraphRestartType.unhealthyNodes.unhealthyDataL1 &&
-        metagraphRestartType.unhealthyNodes.unhealthyDataL1.length === 3
-      ) {
-        await restartIndividualCluster(ssmClient, event, logsNames.dl1LogName, LAYERS.DATA_L1, referenceSourceNode)
-        unhealthyClusters.push(...metagraphRestartType.unhealthyNodes.unhealthyDataL1)
-      } else {
-        unhealthyNodes.push(...metagraphRestartType.unhealthyNodes.unhealthyDataL1)
-      }
-
-      for (const node of unhealthyNodes) {
-        const logName = node.layer === LAYERS.L0 ? logsNames.l0LogName : node.layer === LAYERS.CURRENCY_L1 ? logsNames.cl1LogName : logsNames.dl1LogName
-        await restartIndividualNode(ssmClient, event, logName, node, referenceSourceNode)
-      }
-
-      const nodesIpsWithPorts = [...unhealthyNodes, ...unhealthyClusters].map(node => `${node.ip}:${node.port}`)
-      const metagraphRestart = await upsertMetagraphRestart(
-        metagraphId,
-        DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS,
-        DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES,
-        metagraphRestartType.reason,
-        '',
-        nodesIpsWithPorts.join(',')
-      )
-
-      await createMetagraphRestartStartedAlert(ssmClient, event, metagraphRestart)
-      return {
-        statusCode: 200,
-        body: JSON.stringify(RESTART_REASONS.UNHEALTHY_CLUSTER),
+        closeOpsgenieAlerts: false,
+        deleteCurrentRestart: false,
+        message: RESTART_REASONS.STOP_PRODUCING_SNAPSHOTS,
       }
     }
 
+    console.log(`Restart Type: ${DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES}, triggering restart!`)
+    const { unhealthyMetagraphL0 = [] } = metagraphRestartType.unhealthyNodes
+    const { unhealthyCurrencyL1 = [] } = metagraphRestartType.unhealthyNodes
+    const { unhealthyDataL1 = [] } = metagraphRestartType.unhealthyNodes
+
+    const unhealthyNodes = [...unhealthyMetagraphL0]
+    const unhealthyClusters = []
+
+    if (unhealthyCurrencyL1 && unhealthyCurrencyL1.length === 3) {
+      await restartIndividualCluster(ssmClient, event, cl1LogName, LAYERS.CURRENCY_L1, referenceSourceNode)
+      unhealthyClusters.push(...unhealthyCurrencyL1)
+    } else {
+      unhealthyNodes.push(...unhealthyCurrencyL1)
+    }
+
+    if (unhealthyDataL1 && unhealthyDataL1.length === 3) {
+      await restartIndividualCluster(ssmClient, event, dl1LogName, LAYERS.DATA_L1, referenceSourceNode)
+      unhealthyClusters.push(...unhealthyDataL1)
+    } else {
+      unhealthyNodes.push(...unhealthyDataL1)
+    }
+
+    for (const node of unhealthyNodes) {
+      const logName = node.layer === LAYERS.L0 ? l0LogName : node.layer === LAYERS.CURRENCY_L1 ? cl1LogName : dl1LogName
+      await restartIndividualNode(ssmClient, event, logName, node, referenceSourceNode)
+    }
+
+    const nodesIpsWithPorts = [...unhealthyNodes, ...unhealthyClusters].map(node => `${node.ip}:${node.port}`)
+    const metagraphRestart = await upsertMetagraphRestart(
+      metagraphId,
+      DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS,
+      DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES,
+      metagraphRestartType.reason,
+      '',
+      nodesIpsWithPorts.join(',')
+    )
+
+    await createMetagraphRestartStartedAlert(ssmClient, event, metagraphRestart)
     return {
-      statusCode: 200,
-      body: JSON.stringify('Finished cluster restart'),
+      closeOpsgenieAlerts: false,
+      deleteCurrentRestart: false,
+      message: RESTART_REASONS.UNHEALTHY_NODES,
     }
-
   } catch (e) {
     await createMetagraphRestartFailureAlert(ssmClient, event, e.message, 'Unknow reason')
     throw e
+  }
+}
+
+export const handler = async (
+  event
+) => {
+  const ssmClient = new SSMClient({ region: event.aws.region })
+  const { closeOpsgenieAlerts, deleteCurrentRestart, message } = await _handleRestartMetagraph(event, ssmClient)
+
+  if (closeOpsgenieAlerts) {
+    console.log(`Closing opsgenie alerts`)
+    await closeCurrentMetagraphRestartAlert(ssmClient, event)
+    await closeFailedMetagraphRestartAlert(ssmClient, event)
+  }
+
+  if (deleteCurrentRestart) {
+    console.log(`Deleting current restart`)
+    await deleteMetagraphRestart(event.metagraph.id)
+  }
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify(message)
   }
 }

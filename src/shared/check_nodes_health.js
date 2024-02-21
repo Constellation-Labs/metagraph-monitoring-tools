@@ -2,7 +2,10 @@ import axios from 'axios'
 import { CHECK_NODE_HEALTHY_LIMIT, LAYERS } from '../utils/types.js'
 import { sleep } from './shared.js'
 
-const checkIfNodeIsReady = async (nodeIp, nodePort) => {
+const checkIfNodeIsReady = async (
+  nodeIp,
+  nodePort
+) => {
   try {
     const url = `http://${nodeIp}:${nodePort}/node/info`
 
@@ -10,17 +13,20 @@ const checkIfNodeIsReady = async (nodeIp, nodePort) => {
     const nodeState = response.data.state
     console.log(`Current state of node ${nodeIp}:${nodePort}: ${nodeState}`)
     if (nodeState === 'Ready') {
-      return true
+      return { nodeIsReady: true, successCheck: true }
     }
 
-    return false
+    return { nodeIsReady: false, successCheck: true }
   } catch (e) {
     console.log(`Could not get response of node: ${nodeIp}`)
-    return false
+    return { nodeIsReady: false, successCheck: false }
   }
 }
 
-const checkIfValidatorsStarted = async (event, layer) => {
+const checkIfValidatorsStarted = async (
+  event,
+  layer
+) => {
   const { ports } = event.metagraph
   var layerPorts = {
     [LAYERS.L0]: ports.metagraph_l0_public_port,
@@ -50,7 +56,9 @@ const checkIfValidatorsStarted = async (event, layer) => {
   }
 }
 
-const checkIfNodeStarted = async (url) => {
+const checkIfNodeStarted = async (
+  url
+) => {
   for (let idx = 0; idx < CHECK_NODE_HEALTHY_LIMIT; idx++) {
     try {
       await axios.get(url)
@@ -69,7 +77,10 @@ const checkIfNodeStarted = async (url) => {
   }
 }
 
-const checkIfAllNodesAreReady = async (event, layer) => {
+const checkIfAllNodesAreReady = async (
+  event,
+  layer
+) => {
   const { ports } = event.metagraph
   var layerPorts = {
     [LAYERS.L0]: ports.metagraph_l0_public_port,

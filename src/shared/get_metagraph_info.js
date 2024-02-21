@@ -1,8 +1,27 @@
 import axios from 'axios'
-import { LAYERS, NETWORK_NODES, CHECK_NODE_HEALTHY_LIMIT } from '../utils/types.js'
+import { LAYERS, NETWORK_NODES } from '../utils/types.js'
 import { sleep } from './shared.js'
 
-const _getLatestMetagraphOfNetwork = async (networkName) => {
+
+const _checkIfSnapshotExistsOnNode = async (
+  nodeIp,
+  nodePort,
+  snapshotHash
+) => {
+  const nodeUrl = `http://${nodeIp}:${nodePort}/global-snapshots/${snapshotHash}`
+  try {
+    await axios.get(nodeUrl)
+    console.log(`Snapshot exists on node: ${nodeIp}`)
+    return true
+  } catch (e) {
+    console.log(`Snapshot does not exists on node: ${nodeIp}`)
+    return false
+  }
+}
+
+const getLatestGlobalSnapshotOfNetwork = async (
+  networkName
+) => {
   const beUrl = `https://be-${networkName}.constellationnetwork.io/global-snapshots/latest`
   try {
     const response = await axios.get(beUrl)
@@ -21,65 +40,31 @@ const _getLatestMetagraphOfNetwork = async (networkName) => {
   }
 }
 
-const _checkIfSnapshotExistsOnNode = async (nodeIp, nodePort, snapshotHash) => {
-  const nodeUrl = `http://${nodeIp}:${nodePort}/global-snapshots/${snapshotHash}`
+const getLatesMetagraphSnapshotOfNetwork = async (
+  networkName,
+  metagraphId
+) => {
+  const beUrl = `https://be-${networkName}.constellationnetwork.io/currency/${metagraphId}/snapshots/latest`
   try {
-    await axios.get(nodeUrl)
-    console.log(`Snapshot exists on node: ${nodeIp}`)
-    return true
-  } catch (e) {
-    console.log(`Snapshot does not exists on node: ${nodeIp}`)
-    return false
-  }
-}
+    const response = await axios.get(beUrl)
+    const lastSnapshotOrdinal = response.data.data.ordinal
+    const lastSnapshotHash = response.data.data.hash
 
-const _getUnhealthyNodes = async (clusterInfo) => {
-  const { layer, nodes } = clusterInfo
+    console.log(`LAST METAGRAPH SNAPSHOT OF NETWORK: ${networkName}. Ordinal: ${lastSnapshotOrdinal}. Hash: ${lastSnapshotHash}`)
 
-  console.log(`Checking nodes health of cluster: ${layer}`)
-  const unhealthyNodes = []
-
-  for (const node of nodes) {
-    console.log(`Checking node: ${node.ip}:${node.port}`)
-    for (let idx = 0; idx < CHECK_NODE_HEALTHY_LIMIT; idx++) {
-      try {
-        const response = await axios.get(`http://${node.ip}:${node.port}/node/info`)
-        const nodeInfo = response.data
-        if (nodeInfo.state !== 'Ready') {
-          console.log(`Node is unhealthy`)
-          unhealthyNodes.push({
-            layer,
-            ip: node.ip,
-            port: node.port,
-            id: node.id
-          })
-          break
-        }
-
-        console.log('Node is healthy')
-        break
-      } catch (e) {
-        if (idx === 4) {
-          console.log(`Unhealthy node after trying ${CHECK_NODE_HEALTHY_LIMIT} times`)
-          unhealthyNodes.push({
-            layer,
-            ip: node.ip,
-            port: node.port,
-            id: node.id
-          })
-
-          break
-        }
-        console.log(`Could not get node information at: ${node.ip}. Trying again in 1s (${idx + 1}/${CHECK_NODE_HEALTHY_LIMIT})`)
-        await sleep(1 * 1000)
-      }
+    return {
+      lastSnapshotOrdinal,
+      lastSnapshotHash
     }
+  } catch (e) {
+    console.log(e)
+    throw Error(`Error when searching for snapshot on: ${beUrl}`, e)
   }
-
-  return unhealthyNodes
 }
 
-const getLastMetagraphInfo = async (event) => {
+const getLastMetagraphInfo = async (
+  event
+) => {
   const { network, metagraph } = event
   const beUrl = `https://be-${network.name}.constellationnetwork.io/currency/${metagraph.id}/snapshots/latest`
   try {
@@ -101,7 +86,9 @@ const getLastMetagraphInfo = async (event) => {
   }
 }
 
-const getReferenceSourceNode = async (event) => {
+const getReferenceSourceNode = async (
+  event
+) => {
   const { network } = event
   const networkName = network.name
 
@@ -113,7 +100,7 @@ const getReferenceSourceNode = async (event) => {
   }
 
   const { node_1, node_2, node_3 } = networkNodes
-  const { lastSnapshotHash } = await _getLatestMetagraphOfNetwork(networkName)
+  const { lastSnapshotHash } = await getLatestGlobalSnapshotOfNetwork(networkName)
 
   const snapshotExistsOnNode1 = await _checkIfSnapshotExistsOnNode(node_1.ip, node_1.port, lastSnapshotHash)
   if (snapshotExistsOnNode1) {
@@ -133,7 +120,10 @@ const getReferenceSourceNode = async (event) => {
   return null
 }
 
-const getInformationToJoinNode = async (event, layer) => {
+const getInformationToJoinNode = async (
+  event,
+  layer
+) => {
   const { ports } = event.metagraph
   var urls = {
     [LAYERS.L0]: [
@@ -182,54 +172,11 @@ const getInformationToJoinNode = async (event, layer) => {
   }
 }
 
-const getAllUnhealthyNodes = async (event) => {
-  const { ports } = event.metagraph
-  let clusterInfos = [{
-    layer: LAYERS.L0,
-    nodes: [
-      { ip: event.aws.ec2.instances.genesis.ip, port: ports.metagraph_l0_public_port, id: event.aws.ec2.instances.genesis.id },
-      { ip: event.aws.ec2.instances.validators[0].ip, port: ports.metagraph_l0_public_port, id: event.aws.ec2.instances.validators[0].id },
-      { ip: event.aws.ec2.instances.validators[1].ip, port: ports.metagraph_l0_public_port, id: event.aws.ec2.instances.validators[1].id },
-    ]
-  }]
-
-  if (event.metagraph.include_currency_l1_layer) {
-    clusterInfos.push({
-      layer: LAYERS.CURRENCY_L1,
-      nodes: [
-        { ip: event.aws.ec2.instances.genesis.ip, port: ports.currency_l1_public_port, id: event.aws.ec2.instances.genesis.id },
-        { ip: event.aws.ec2.instances.validators[0].ip, port: ports.currency_l1_public_port, id: event.aws.ec2.instances.validators[0].id },
-        { ip: event.aws.ec2.instances.validators[1].ip, port: ports.currency_l1_public_port, id: event.aws.ec2.instances.validators[1].id },
-      ]
-    })
-  }
-
-  if (event.metagraph.include_data_l1_layer) {
-    clusterInfos.push({
-      layer: LAYERS.DATA_L1,
-      nodes: [
-        { ip: event.aws.ec2.instances.genesis.ip, port: ports.data_l1_public_port, id: event.aws.ec2.instances.genesis.id },
-        { ip: event.aws.ec2.instances.validators[0].ip, port: ports.data_l1_public_port, id: event.aws.ec2.instances.validators[0].id },
-        { ip: event.aws.ec2.instances.validators[1].ip, port: ports.data_l1_public_port, id: event.aws.ec2.instances.validators[1].id },
-      ]
-    })
-  }
-
-  const allUnhealthyNodes = []
-  for (const clusterInfo of clusterInfos) {
-    const unhealthyNodes = await _getUnhealthyNodes(clusterInfo)
-    if (unhealthyNodes.length > 0) {
-      console.log(`Some nodes of layer: ${clusterInfo.layer} are unhealthy: ${JSON.stringify(unhealthyNodes)}`)
-      allUnhealthyNodes.push(...unhealthyNodes)
-    }
-  }
-
-  return allUnhealthyNodes
-}
 
 export {
+  getLatestGlobalSnapshotOfNetwork,
+  getLatesMetagraphSnapshotOfNetwork,
   getLastMetagraphInfo,
   getReferenceSourceNode,
-  getInformationToJoinNode,
-  getAllUnhealthyNodes
+  getInformationToJoinNode
 }
