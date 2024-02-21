@@ -1,9 +1,17 @@
 import { getKeys, sendCommand } from '../external/aws/ssm.js'
-import { saveLogs, killCurrentExecution } from '../shared/index.js'
+import { killCurrentExecution, saveLogs } from '../shared/restart_operations.js'
 import { buildSeedlistInformation } from '../utils/build_seedlist_url.js'
 import { KEY_LAYERS, LAYERS, SEEDLIST_LAYERS } from '../utils/types.js'
 
-const startInitialValidatorNodeCurrencyL1 = async (ssmClient, event, logName, mL0NodeId, rollbackNode, referenceSourceNode, shouldKillCurrentExecution = true) => {
+const startInitialValidatorNodeCurrencyL1 = async (
+  ssmClient,
+  event,
+  logName,
+  mL0NodeId,
+  rollbackNode,
+  referenceSourceNode,
+  shouldKillCurrentExecution = true
+) => {
   if (shouldKillCurrentExecution) {
     await killCurrentExecution(ssmClient, event, LAYERS.CURRENCY_L1, [rollbackNode.id])
   }
@@ -59,11 +67,19 @@ const startInitialValidatorNodeCurrencyL1 = async (ssmClient, event, logName, mL
   await sendCommand(ssmClient, commands, [rollbackNode.id])
 }
 
-const startValidatorNodeCurrencyL1 = async (ssmClient, event, logName, mL0NodeId, validator, referenceSourceNode, shouldKillCurrentExecution = true) => {
+const startValidatorNodeCurrencyL1 = async (
+  ssmClient,
+  event,
+  logName,
+  mL0NodeId,
+  validator,
+  referenceSourceNode,
+  shouldKillCurrentExecution = true
+) => {
   if (shouldKillCurrentExecution) {
     await killCurrentExecution(ssmClient, event, LAYERS.CURRENCY_L1, [validator.id])
   }
-  
+
   await saveLogs(ssmClient, event, logName, LAYERS.CURRENCY_L1, [validator.id])
   const validatorKeys = await getKeys(ssmClient, validator.id, KEY_LAYERS.CURRENCY_L1)
 
@@ -115,4 +131,7 @@ const startValidatorNodeCurrencyL1 = async (ssmClient, event, logName, mL0NodeId
   await sendCommand(ssmClient, commands, [validator.id])
 }
 
-export { startInitialValidatorNodeCurrencyL1, startValidatorNodeCurrencyL1 }
+export {
+  startInitialValidatorNodeCurrencyL1,
+  startValidatorNodeCurrencyL1
+}

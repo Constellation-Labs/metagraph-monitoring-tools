@@ -1,6 +1,9 @@
 import { SEEDLIST_EXTERNAL_STORAGE } from "./types.js"
 
-const buildGithubSeedlistInformation = (metagraph, layer) => {
+const buildGithubSeedlistInformation = (
+  metagraph,
+  layer
+) => {
   const seedlistInformation = metagraph.seedlists[layer]
   if (!seedlistInformation || Object.keys(seedlistInformation).length === 0) {
     throw Error(`Could not get information of seedlist at layer ${layer}`)
@@ -18,7 +21,10 @@ const buildGithubSeedlistInformation = (metagraph, layer) => {
   }
 }
 
-const buildSeedlistInformation = (event, layer) => {
+const buildSeedlistInformation = (
+  event,
+  layer
+) => {
   const { metagraph } = event
   if (Object.keys(metagraph.seedlists).length === 0) {
     console.log(`Seedlists not set for metagraph ${metagraph.name}`)

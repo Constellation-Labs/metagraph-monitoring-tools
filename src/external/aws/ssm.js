@@ -1,6 +1,10 @@
 import { SendCommandCommand, GetParameterCommand } from '@aws-sdk/client-ssm'
 
-const sendCommand = async (ssmClient, commands, ec2InstancesIds) => {
+const sendCommand = async (
+  ssmClient,
+  commands,
+  ec2InstancesIds
+) => {
   const params = {
     DocumentName: "AWS-RunShellScript",
     InstanceIds: ec2InstancesIds,
@@ -17,7 +21,10 @@ const sendCommand = async (ssmClient, commands, ec2InstancesIds) => {
   }
 }
 
-const getSSMParameter = async (ssmClient, parameterName) => {
+const getSSMParameter = async (
+  ssmClient,
+  parameterName
+) => {
   console.log(`Starting to get parameter: ${parameterName} on SSM (Parameter Store)`)
   const getParameterCommand = new GetParameterCommand({
     Name: parameterName,
@@ -27,7 +34,11 @@ const getSSMParameter = async (ssmClient, parameterName) => {
   return parameter.Parameter.Value
 }
 
-const getKeys = async (ssmClient, instanceId, layer) => {
+const getKeys = async (
+  ssmClient,
+  instanceId,
+  layer
+) => {
   const keyStore = await getSSMParameter(ssmClient, `/metagraph-nodes/${instanceId}/${layer}/keystore`)
   const keyAlias = await getSSMParameter(ssmClient, `/metagraph-nodes/${instanceId}/${layer}/keyalias`)
   const password = await getSSMParameter(ssmClient, `/metagraph-nodes/${instanceId}/${layer}/password`)
