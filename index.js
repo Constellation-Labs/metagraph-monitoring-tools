@@ -4,7 +4,7 @@ import { LAYERS, RESTART_REASONS, DYNAMO_RESTART_STATE, DYNAMO_RESTART_TYPES, MA
 import { deleteMetagraphRestart, getMetagraphRestartOrCreateNew, upsertMetagraphRestart } from './src/external/aws/dynamo.js'
 import { startMetagraphRollback } from './src/restarts/full_cluster.js'
 import { restartIndividualNode } from './src/restarts/individual_node.js'
-import { closeCurrentMetagraphRestartAlert, createMetagraphRestartFailureAlert, createMetagraphRestartStartedAlert } from './src/external/opsgenie/index.js'
+import { closeCurrentMetagraphRestartAlert, closeFailedMetagraphRestartAlert, createMetagraphRestartFailureAlert, createMetagraphRestartStartedAlert } from './src/external/opsgenie/index.js'
 import { checkCurrentMetagraphRestart } from './src/restarts/check_restart_progress.js'
 import { restartIndividualCluster } from './src/restarts/individual_cluster.js'
 import { checkUnhealthyNodes } from './src/restart_conditions/unhealthy_nodes.js'
@@ -234,6 +234,7 @@ export const handler = async (
   if (closeOpsgenieAlerts) {
     console.log(`Closing opsgenie alerts`)
     await closeCurrentMetagraphRestartAlert(ssmClient, event)
+    await closeFailedMetagraphRestartAlert(ssmClient, event)
   }
 
   if (deleteCurrentRestart) {
