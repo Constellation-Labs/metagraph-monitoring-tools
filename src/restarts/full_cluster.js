@@ -1,10 +1,19 @@
 import { startInitialValidatorNodeCurrencyL1, startValidatorNodeCurrencyL1 } from "../currency-l1/index.js"
 import { startInitialValidatorNodeDataL1, startValidatorNodeDataL1 } from "../data-l1/index.js"
 import { startRollbackNodeL0, startValidatorNodeL0 } from "../metagraph-l0/index.js"
-import { getInformationToJoinNode, sleep, joinNodeToCluster, killCurrentExecution, checkIfNodeStarted } from "../shared/index.js"
+import { checkIfNodeStarted } from "../shared/check_nodes_health.js"
+import { getInformationToJoinNode } from "../shared/get_metagraph_info.js"
+import { joinNodeToCluster, killCurrentExecution } from "../shared/restart_operations.js"
+import { sleep } from "../shared/shared.js"
 import { LAYERS } from "../utils/types.js"
 
-const startMetagraphL0Validators = async (ssmClient, event, logName, nodeId, referenceSourceNode) => {
+const startMetagraphL0Validators = async (
+  ssmClient,
+  event,
+  logName,
+  nodeId,
+  referenceSourceNode
+) => {
   for (const validator of event.aws.ec2.instances.validators) {
     console.log(`Starting validator ${validator.ip}`)
     await startValidatorNodeL0(
@@ -22,7 +31,13 @@ const startMetagraphL0Validators = async (ssmClient, event, logName, nodeId, ref
   }
 }
 
-const startCurrencyL1Nodes = async (ssmClient, event, logName, ml0NodeId, referenceSourceNode) => {
+const startCurrencyL1Nodes = async (
+  ssmClient,
+  event,
+  logName,
+  ml0NodeId,
+  referenceSourceNode
+) => {
   console.log(`Starting initial validator`)
   await startInitialValidatorNodeCurrencyL1(ssmClient, event, logName, ml0NodeId, event.aws.ec2.instances.genesis, referenceSourceNode)
   await sleep(10 * 1000)
@@ -46,7 +61,13 @@ const startCurrencyL1Nodes = async (ssmClient, event, logName, ml0NodeId, refere
   }
 }
 
-const startDataL1Nodes = async (ssmClient, event, logName, ml0NodeId, referenceSourceNode) => {
+const startDataL1Nodes = async (
+  ssmClient,
+  event,
+  logName,
+  ml0NodeId,
+  referenceSourceNode
+) => {
   await startInitialValidatorNodeDataL1(ssmClient, event, logName, ml0NodeId, event.aws.ec2.instances.genesis, referenceSourceNode)
   await sleep(10 * 1000)
 
@@ -70,7 +91,12 @@ const startDataL1Nodes = async (ssmClient, event, logName, ml0NodeId, referenceS
   }
 }
 
-const startMetagraphRollback = async (ssmClient, event, l0LogName, referenceSourceNode) => {
+const startMetagraphRollback = async (
+  ssmClient,
+  event,
+  l0LogName,
+  referenceSourceNode
+) => {
   const allInstancesIds = [event.aws.ec2.instances.genesis.id, event.aws.ec2.instances.validators[0].id, event.aws.ec2.instances.validators[1].id]
 
   await killCurrentExecution(ssmClient, event, LAYERS.L0, allInstancesIds)
@@ -80,7 +106,12 @@ const startMetagraphRollback = async (ssmClient, event, l0LogName, referenceSour
   await startRollbackNodeL0(ssmClient, event, event.aws.ec2.instances.genesis, referenceSourceNode, l0LogName, false)
 }
 
-const finishMetagraphRollback = async (ssmClient, event, { l0LogName, cl1LogName, dl1LogName }, referenceSourceNode) => {
+const finishMetagraphRollback = async (
+  ssmClient,
+  event,
+  { l0LogName, cl1LogName, dl1LogName },
+  referenceSourceNode
+) => {
   const node = await getInformationToJoinNode(event, LAYERS.L0)
 
   await startMetagraphL0Validators(ssmClient, event, l0LogName, node, referenceSourceNode)

@@ -4,7 +4,11 @@ import { OPSGENIE_API_KEY_PATH, VALID_NETWORKS_TAGS_OPSGENIE, DYNAMO_RESTART_TYP
 
 const OPSGENIE_ALERT_URL = "https://api.opsgenie.com/v2/alerts"
 
-const _buildValidatorsLogsURLs = (validators, prefix, port) => {
+const _buildValidatorsLogsURLs = (
+  validators,
+  prefix,
+  port
+) => {
   const messages = []
   for (const validator of validators) {
     messages.push(`${prefix} - ${validator.ip}: http://${validator.ip}:${port}/node/info`)
@@ -13,7 +17,9 @@ const _buildValidatorsLogsURLs = (validators, prefix, port) => {
   return messages.join('\n')
 }
 
-const _buildValidatorsLogsInstances = (validators) => {
+const _buildValidatorsLogsInstances = (
+  validators
+) => {
   const messages = []
   for (const validator of validators) {
     messages.push(`Instance ${validator.ip} (Validator) ID: ${validator.id}`)
@@ -23,7 +29,10 @@ const _buildValidatorsLogsInstances = (validators) => {
   return messages.join('\n')
 }
 
-const _buildStartedRestartAlertBody = (event, metagraphRestart) => {
+const _buildStartedRestartAlertBody = (
+  event,
+  metagraphRestart
+) => {
   const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
   const { name: networkName } = event.network
   const { genesis, validators } = event.aws.ec2.instances
@@ -72,7 +81,11 @@ const _buildStartedRestartAlertBody = (event, metagraphRestart) => {
   }
 }
 
-const _buildFailureRestartAlertBody = (event, errorMessage, metagraphRestart) => {
+const _buildFailureRestartAlertBody = (
+  event,
+  errorMessage,
+  metagraphRestart
+) => {
   const { name: metagraphName, id, ports, include_currency_l1_layer, include_data_l1_layer } = event.metagraph
   const { name: networkName } = event.network
   const { genesis, validators } = event.aws.ec2.instances
@@ -122,7 +135,10 @@ const _buildFailureRestartAlertBody = (event, errorMessage, metagraphRestart) =>
   }
 }
 
-const _createRemoteAlert = async (body, opsgenieApiKey) => {
+const _createRemoteAlert = async (
+  body,
+  opsgenieApiKey
+) => {
   try {
     await axios.post(OPSGENIE_ALERT_URL, body, {
       headers: {
@@ -135,7 +151,10 @@ const _createRemoteAlert = async (body, opsgenieApiKey) => {
   }
 }
 
-const _closeRemoteAlert = async (alias, opsgenieApiKey) => {
+const _closeRemoteAlert = async (
+  alias,
+  opsgenieApiKey
+) => {
   const body = {
     "user": "Monitoring Script",
     "source": "AWS Lambda",
@@ -153,7 +172,11 @@ const _closeRemoteAlert = async (alias, opsgenieApiKey) => {
   }
 }
 
-const createMetagraphRestartStartedAlert = async (ssmClient, event, metagraphRestart) => {
+const createMetagraphRestartStartedAlert = async (
+  ssmClient,
+  event,
+  metagraphRestart
+) => {
   if (!event.enable_opsgenie_alerts) {
     console.log('Opsgenie not enabled')
     return
@@ -167,7 +190,10 @@ const createMetagraphRestartStartedAlert = async (ssmClient, event, metagraphRes
   console.log(`Alert created`)
 }
 
-const closeCurrentMetagraphRestartAlert = async (ssmClient, event) => {
+const closeCurrentMetagraphRestartAlert = async (
+  ssmClient,
+  event
+) => {
   if (!event.enable_opsgenie_alerts) {
     console.log('Opsgenie not enabled')
     return
@@ -180,7 +206,28 @@ const closeCurrentMetagraphRestartAlert = async (ssmClient, event) => {
   console.log(`Alert close`)
 }
 
-const createMetagraphRestartFailureAlert = async (ssmClient, event, errorMessage, metagraphRestart) => {
+const closeFailedMetagraphRestartAlert = async (
+  ssmClient,
+  event
+) => {
+  if (!event.enable_opsgenie_alerts) {
+    console.log('Opsgenie not enabled')
+    return
+  }
+  console.log(`Closing failed metagraph restart alert`)
+  const opsgenieApiKey = await getSSMParameter(ssmClient, OPSGENIE_API_KEY_PATH)
+  const alias = `${event.metagraph.id}_failure_restarted`
+
+  await _closeRemoteAlert(alias, opsgenieApiKey)
+  console.log(`Alert close`)
+}
+
+const createMetagraphRestartFailureAlert = async (
+  ssmClient,
+  event,
+  errorMessage,
+  metagraphRestart
+) => {
   if (!event.enable_opsgenie_alerts) {
     console.log('Opsgenie not enabled')
     return
@@ -195,6 +242,7 @@ const createMetagraphRestartFailureAlert = async (ssmClient, event, errorMessage
 
 export {
   createMetagraphRestartStartedAlert,
+  createMetagraphRestartFailureAlert,
   closeCurrentMetagraphRestartAlert,
-  createMetagraphRestartFailureAlert
+  closeFailedMetagraphRestartAlert
 }

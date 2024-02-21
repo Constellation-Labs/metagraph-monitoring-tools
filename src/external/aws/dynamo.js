@@ -8,7 +8,14 @@ import {
 
 const dynamodb = new AWS.DynamoDB()
 
-const upsertMetagraphRestart = async (metagraphId, state, restartType, restartReason, referenceNodeIp, individualNodesIpsWithPorts) => {
+const upsertMetagraphRestart = async (
+  metagraphId,
+  state,
+  restartType,
+  restartReason,
+  referenceNodeIp,
+  individualNodesIpsWithPorts
+) => {
   const item = {
     TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Item: {
@@ -16,7 +23,7 @@ const upsertMetagraphRestart = async (metagraphId, state, restartType, restartRe
       state: { S: state },
       type: { S: 'metagraph' },
       restart_type: { S: restartType || '' },
-      restart_reason: { S: restartReason || ''},
+      restart_reason: { S: restartReason || '' },
       reference_node_ip: { S: referenceNodeIp || '' },
       individual_nodes_ips_with_ports: { S: individualNodesIpsWithPorts || '' },
       updated_at: { S: moment.utc().format(DATE_FORMAT) },
@@ -32,7 +39,9 @@ const upsertMetagraphRestart = async (metagraphId, state, restartType, restartRe
   return await getMetagraphRestartOrCreateNew(metagraphId)
 }
 
-const getMetagraphRestartOrCreateNew = async (metagraphId) => {
+const getMetagraphRestartOrCreateNew = async (
+  metagraphId
+) => {
   console.log(`Starting to get metagraph restart or create new`)
   const params = {
     TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
@@ -53,9 +62,7 @@ const getMetagraphRestartOrCreateNew = async (metagraphId) => {
   const { Item } = data
   if (!Item) {
     console.log("Could not get metagraph restart, creating new restart of metagraph...")
-    const updatedAt = moment.utc().format(DATE_FORMAT)
-
-    return upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.NEW, updatedAt)
+    return upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.NEW)
   }
 
   const state = Item.state.S
@@ -79,7 +86,9 @@ const getMetagraphRestartOrCreateNew = async (metagraphId) => {
   return body
 }
 
-const deleteMetagraphRestart = async (metagraphId) => {
+const deleteMetagraphRestart = async (
+  metagraphId
+) => {
   const params = {
     TableName: DYNAMO_DB_TABLE_AUTO_RESTART,
     Key: {

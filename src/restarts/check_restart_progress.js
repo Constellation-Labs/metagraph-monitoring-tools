@@ -1,11 +1,16 @@
 import moment from 'moment'
 import { deleteMetagraphRestart, getMetagraphRestartOrCreateNew, upsertMetagraphRestart } from "../external/aws/dynamo.js"
-import { closeCurrentMetagraphRestartAlert, createMetagraphRestartFailureAlert } from "../external/opsgenie/index.js"
-import { checkIfNodeIsReady, getLogsNames } from "../shared/index.js"
+import { createMetagraphRestartFailureAlert } from "../external/opsgenie/index.js"
 import { DYNAMO_RESTART_STATE, DYNAMO_RESTART_TYPES, ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES, DATE_FORMAT } from "../utils/types.js"
 import { finishMetagraphRollback } from "./full_cluster.js"
+import { checkIfNodeIsReady } from '../shared/check_nodes_health.js'
+import { getLogsNames } from '../shared/restart_operations.js'
 
-const checkFullClusterRestart = async (event, metagraphId, currentMetagraphRestart) => {
+const _checkFullClusterRestart = async (
+  event,
+  metagraphId,
+  currentMetagraphRestart
+) => {
   console.log(`Checking full cluster restart`)
   const { state, restartType, restartReason, referenceNodeIp } = currentMetagraphRestart;
 
@@ -14,25 +19,37 @@ const checkFullClusterRestart = async (event, metagraphId, currentMetagraphResta
   const node3 = event.aws.ec2.instances.validators[1]
   const { ports } = event.metagraph
 
-  const node1Ready = await checkIfNodeIsReady(node1.ip, ports.metagraph_l0_public_port)
-  const node2Ready = await checkIfNodeIsReady(node2.ip, ports.metagraph_l0_public_port)
-  const node3Ready = await checkIfNodeIsReady(node3.ip, ports.metagraph_l0_public_port)
+  const { nodeIsReady: node1Ready } = await checkIfNodeIsReady(node1.ip, ports.metagraph_l0_public_port)
+  const { nodeIsReady: node2Ready } = await checkIfNodeIsReady(node2.ip, ports.metagraph_l0_public_port)
+  const { nodeIsReady: node3Ready } = await checkIfNodeIsReady(node3.ip, ports.metagraph_l0_public_port)
 
   if (node1Ready && node2Ready && node3Ready) {
     console.log('All nodes are READY')
-    return await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, referenceNodeIp)
+    return {
+      metagraphRestart: await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, referenceNodeIp),
+      successExecution: true
+    }
   }
 
   if ((node1Ready || node2Ready || node3Ready) && state === DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS) {
     console.log('Initial node ready to JOIN')
-    return await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY_TO_JOIN, restartType, restartReason, referenceNodeIp)
+    return {
+      metagraphRestart: await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY_TO_JOIN, restartType, restartReason, referenceNodeIp),
+      successExecution: true
+    }
   }
 
   console.log(`Still restarting`)
-  return currentMetagraphRestart
+  return {
+    metagraphRestart: currentMetagraphRestart,
+    successExecution: true
+  }
 }
 
-const checkIndividualNodesRestart = async (metagraphId, currentMetagraphRestart) => {
+const _checkIndividualNodesRestart = async (
+  metagraphId,
+  currentMetagraphRestart
+) => {
   console.log(`Checking inidivudal node restart`)
   const { restartType, restartReason, individualNodesIpsWithPorts } = currentMetagraphRestart;
   if (!individualNodesIpsWithPorts) {
@@ -41,51 +58,100 @@ const checkIndividualNodesRestart = async (metagraphId, currentMetagraphRestart)
 
   const individualNodesIpsWithPortsAsList = individualNodesIpsWithPorts.split(',')
   const nodesReady = []
+  const nodesFailureExecution = []
 
   console.log(`Starting to check the status of nodes: ${JSON.stringify(individualNodesIpsWithPortsAsList)}`)
   for (const currentNodeIpAndPort of individualNodesIpsWithPortsAsList) {
     const node = currentNodeIpAndPort.split(':')
-    const nodeReady = await checkIfNodeIsReady(node[0], node[1])
-    if (nodeReady) {
+    const { nodeIsReady, successCheck } = await checkIfNodeIsReady(node[0], node[1])
+    if (nodeIsReady && successCheck) {
       nodesReady.push(currentNodeIpAndPort)
+    }
+    if (!successCheck) {
+      nodesFailureExecution.push(currentNodeIpAndPort)
     }
   }
 
   if (nodesReady.length === individualNodesIpsWithPortsAsList.length) {
     console.log(`All nodes READY`)
-    return await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, '', individualNodesIpsWithPorts)
+    return {
+      metagraphRestart: await upsertMetagraphRestart(metagraphId, DYNAMO_RESTART_STATE.READY, restartType, restartReason, '', individualNodesIpsWithPorts),
+      successExecution: true
+    }
+  }
+
+  if (nodesFailureExecution.length > 0) {
+    console.log(`Failure checking node`)
+    return {
+      metagraphRestart: currentMetagraphRestart,
+      successExecution: false
+    }
   }
 
   console.log(`Still restarting`)
-  return currentMetagraphRestart
+  return {
+    metagraphRestart: currentMetagraphRestart,
+    successExecution: true
+  }
 }
 
-const checkRestartStatus = async (event, networkName, currentMetagraphRestart) => {
+const _checkRestartStatus = async (
+  event,
+  networkName,
+  currentMetagraphRestart
+) => {
   const { restartType, state } = currentMetagraphRestart;
   const metagraphId = event.metagraph.id
 
   if (state === DYNAMO_RESTART_STATE.NEW) {
-    return currentMetagraphRestart
+    return {
+      metagraphRestart: currentMetagraphRestart,
+      successExecution: true
+    }
   }
+
   if (restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
-    return await checkFullClusterRestart(event, metagraphId, currentMetagraphRestart)
+    return await _checkFullClusterRestart(event, metagraphId, currentMetagraphRestart)
   }
+
   if (restartType === DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES) {
-    return await checkIndividualNodesRestart(metagraphId, currentMetagraphRestart)
+    return await _checkIndividualNodesRestart(metagraphId, currentMetagraphRestart)
   }
 
   throw Error(`Error when checking restart status of metagraph: ${networkName}`)
 }
 
-const checkMetagraphRestartProgress = async (event, metagraphId, oldMetagraphRestart) => {
+const _checkMetagraphRestartProgress = async (
+  event,
+  metagraphId,
+  currentMetagraphRestart
+) => {
   console.log(`Getting current restart status`)
-  const metagraphRestart = await checkRestartStatus(event, metagraphId, oldMetagraphRestart)
+  const { metagraphRestart, successExecution } = await _checkRestartStatus(
+    event,
+    metagraphId,
+    currentMetagraphRestart
+  )
+
+  if (!successExecution) {
+    return {
+      restartCompleted: false,
+      triggerNewRestart: true,
+      closeOpsgenieAlerts: false,
+      deleteCurrentRestart: true,
+      message: `Failure checking current restart, triggering a new...`,
+      updatedMetagraphRestart: metagraphRestart
+    }
+  }
+
   if (metagraphRestart.state === DYNAMO_RESTART_STATE.READY) {
     return {
-      statusCode: 200,
-      finishCurrentDynamoDBMetagraphRestart: true,
+      restartCompleted: true,
+      triggerNewRestart: false,
+      closeOpsgenieAlerts: true,
+      deleteCurrentRestart: true,
       message: 'All nodes are in READY state',
-      metagraphRestart
+      updatedMetagraphRestart: metagraphRestart
     }
   }
 
@@ -97,43 +163,86 @@ const checkMetagraphRestartProgress = async (event, metagraphId, oldMetagraphRes
     console.log(`Operation running since: ${updatedAt} will timeout at ${timeoutTime.format(DATE_FORMAT)}`)
 
     return {
-      statusCode: 200,
-      finishCurrentDynamoDBMetagraphRestart: false,
-      message: 'There is already one restart in progress for this metagraph, please wait this operation could take hours',
-      metagraphRestart
+      restartCompleted: false,
+      triggerNewRestart: false,
+      closeOpsgenieAlerts: false,
+      deleteCurrentRestart: false,
+      message: 'There is already one restart in progress for this metagraph, please wait this operation could take some minutes',
+      updatedMetagraphRestart: metagraphRestart
     }
   }
 
   return {
-    statusCode: 400,
-    finishCurrentDynamoDBMetagraphRestart: true,
+    restartCompleted: false,
+    triggerNewRestart: true,
+    closeOpsgenieAlerts: false,
+    deleteCurrentRestart: true,
     message: `The last restart of network is taking more than ${ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES} minutes, please check the logs. Triggering a new restart...`,
-    metagraphRestart
+    updatedMetagraphRestart: metagraphRestart
   }
 }
 
-const getMetagraphRestartProgress = async (ssmClient, event, currentMetagraphRestart, referenceSourceNode) => {
+const checkCurrentMetagraphRestart = async (
+  ssmClient,
+  event,
+  referenceSourceNode,
+  currentMetagraphRestart
+) => {
   console.log(`Starting to get metagraph restart progress`)
   if (currentMetagraphRestart.state === DYNAMO_RESTART_STATE.NEW) {
-    console.log(`New restart`)
     return {
-      status: 200,
-      body: 'New Restart',
+      closeOpsgenieAlerts: false,
+      deleteCurrentRestart: false,
       restartState: DYNAMO_RESTART_STATE.NEW,
-      metagraphRestart: currentMetagraphRestart
+      message: 'New Restart',
     }
   }
 
-  const metagraphRestartProgress = await checkMetagraphRestartProgress(
+  const {
+    restartCompleted,
+    triggerNewRestart,
+    closeOpsgenieAlerts,
+    deleteCurrentRestart,
+    message,
+    updatedMetagraphRestart
+  } = await _checkMetagraphRestartProgress(
     event,
-    event.metagraph.id,
+    event.metagraph.metagraphId,
     currentMetagraphRestart
   )
 
-  const { state, restartType, restartReason, referenceNodeIp } = metagraphRestartProgress.metagraphRestart
+  if (restartCompleted) {
+    return {
+      closeOpsgenieAlerts,
+      deleteCurrentRestart,
+      restartState: DYNAMO_RESTART_STATE.READY,
+      message
+    }
+  }
+
+  if (triggerNewRestart) {
+    await createMetagraphRestartFailureAlert(
+      ssmClient,
+      event,
+      message,
+      updatedMetagraphRestart
+    )
+
+    await deleteMetagraphRestart(event.metagraph.id)
+    await getMetagraphRestartOrCreateNew(event.metagraph.id)
+
+    return {
+      closeOpsgenieAlerts,
+      deleteCurrentRestart,
+      restartState: DYNAMO_RESTART_STATE.NEW,
+      message: 'Starting a new restart because the last one failed',
+    }
+  }
+
+  const { state, restartType, restartReason, referenceNodeIp } = updatedMetagraphRestart
   if (state === DYNAMO_RESTART_STATE.READY_TO_JOIN && restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
     console.log(`Metagraph is READY_TO_JOIN triggering finishMetagraphRollback`)
-    
+
     const logsNames = getLogsNames()
     await finishMetagraphRollback(ssmClient, event, logsNames, referenceSourceNode)
 
@@ -146,45 +255,21 @@ const getMetagraphRestartProgress = async (ssmClient, event, currentMetagraphRes
     )
 
     return {
-      status: 200,
+      closeOpsgenieAlerts,
+      deleteCurrentRestart,
       restartState: DYNAMO_RESTART_STATE.JOINING,
-      body: 'finishMetagraphRollback triggered, finishing current execution.',
-      metagraphRestart: currentMetagraphRestart
+      message: 'finishMetagraphRollback triggered, finishing current execution.',
     }
   }
 
-  if (metagraphRestartProgress.finishCurrentDynamoDBMetagraphRestart) {
-    console.log(`Deleting current metagraph restart on dynamo table`)
-    await deleteMetagraphRestart(event.metagraph.id)
-    if (metagraphRestartProgress.statusCode === 200) {
-      await closeCurrentMetagraphRestartAlert(ssmClient, event)
-    }
-  }
-
-  if (metagraphRestartProgress.statusCode === 200) {
-    return {
-      statusCode: 200,
-      body: JSON.stringify(metagraphRestartProgress.message),
-      metagraphRestart: currentMetagraphRestart
-    }
-  }
-
-  await createMetagraphRestartFailureAlert(
-    ssmClient,
-    event,
-    metagraphRestartProgress.message,
-    metagraphRestartProgress.metagraphRestart
-  )
-
-  const metagraphRestart = await getMetagraphRestartOrCreateNew(metagraphId)
   return {
-    status: 200,
-    restartState: DYNAMO_RESTART_STATE.NEW,
-    body: 'Starting a new restart because the last one timed out',
-    metagraphRestart
+    closeOpsgenieAlerts,
+    deleteCurrentRestart,
+    restartState: DYNAMO_RESTART_STATE.ROLLBACK_IN_PROGRESS,
+    message,
   }
 }
 
 export {
-  getMetagraphRestartProgress
+  checkCurrentMetagraphRestart
 }
