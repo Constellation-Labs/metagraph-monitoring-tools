@@ -5,6 +5,7 @@
     "version": "metagraph_version",
     "include_currency_l1_layer": true,
     "include_data_l1_layer": true,
+    "monitor_data_l1_transactions": false,
     "file_system": {
       "base_metagraph_l0_directory": "your_metagraph_l0_directory",
       "base_currency_l1_directory": "your_currency_l1_directory",
