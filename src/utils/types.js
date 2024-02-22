@@ -45,7 +45,7 @@ const DYNAMO_RESTART_STATE = {
 }
 
 const DYNAMO_DB_TABLE_AUTO_RESTART = 'auto_restart'
-const CHECK_NODE_HEALTHY_LIMIT = 50
+const CHECK_NODE_HEALTHY_LIMIT = 20
 
 const OPSGENIE_API_KEY_PATH = '/metagraph-nodes/opsgenie-api-key'
 
