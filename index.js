@@ -102,6 +102,35 @@ const _getReferenceSourceNodeFromNetwork = async (
   return referenceSourceNode
 }
 
+const _checkCurrentMetagraphRestart = async (
+  ssmClient,
+  event,
+  referenceSourceNode,
+  currentMetagraphRestart
+) => {
+  console.log(`Checking current metagraph restart`)
+  const { closeOpsgenieAlerts, deleteCurrentRestart, restartState, message } = await checkCurrentMetagraphRestart(
+    ssmClient,
+    event,
+    referenceSourceNode,
+    currentMetagraphRestart
+  );
+
+  if (restartState === DYNAMO_RESTART_STATE.READY) {
+    console.log(`Current restart READY, validating the nodes`)
+    await _validateIfAllNodesAreReady(event);
+    console.log(`All nodes are READY`)
+
+    await _checkIfNewSnapshotsAreProducedAfterRestart(event);
+  }
+
+  return {
+    closeOpsgenieAlerts,
+    deleteCurrentRestart,
+    message
+  }
+}
+
 const _handleRestartMetagraph = async (
   event,
   ssmClient
@@ -116,34 +145,28 @@ const _handleRestartMetagraph = async (
   console.log(`Getting the reference source node`)
   const referenceSourceNode = await _getReferenceSourceNodeFromNetwork(event)
 
-  console.log(`Getting possible metagraph restart type`)
-  const metagraphRestartType = await _getMetagraphRestartType(event)
-
-  if (
-    !(currentMetagraphRestart.restartType === DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES && metagraphRestartType.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) &&
-    currentMetagraphRestart.state !== DYNAMO_RESTART_STATE.NEW
-  ) {
-    console.log(`Checking current metagraph restart`)
-    const { closeOpsgenieAlerts, deleteCurrentRestart, restartState, message } = await checkCurrentMetagraphRestart(
+  if (currentMetagraphRestart.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) {
+    console.log(`FULL RESTART already in progress`)
+    return await _checkCurrentMetagraphRestart(
       ssmClient,
       event,
       referenceSourceNode,
       currentMetagraphRestart
-    );
+    )
+  }
 
-    if (restartState === DYNAMO_RESTART_STATE.READY) {
-      console.log(`Current restart READY, validating the nodes`)
-      await _validateIfAllNodesAreReady(event);
-      console.log(`All nodes are READY`)
-
-      await _checkIfNewSnapshotsAreProducedAfterRestart(event);
-    }
-
-    return {
-      closeOpsgenieAlerts,
-      deleteCurrentRestart,
-      message
-    }
+  console.log(`Getting possible metagraph restart type`)
+  const metagraphRestartType = await _getMetagraphRestartType(event)
+  if (
+    !(currentMetagraphRestart.restartType === DYNAMO_RESTART_TYPES.INDIVIDUAL_NODES && metagraphRestartType.restartType === DYNAMO_RESTART_TYPES.FULL_CLUSTER) &&
+    currentMetagraphRestart.state !== DYNAMO_RESTART_STATE.NEW
+  ) {
+    return _checkCurrentMetagraphRestart(
+      ssmClient,
+      event,
+      referenceSourceNode,
+      currentMetagraphRestart
+    )
   }
 
   try {
