@@ -49,7 +49,7 @@ const CHECK_NODE_HEALTHY_LIMIT = 20
 
 const OPSGENIE_API_KEY_PATH = '/metagraph-nodes/opsgenie-api-key'
 
-const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 60
+const ROLLBACK_IN_PROGRESS_TIMEOUT_IN_MINUTES = 15
 
 const NETWORK_NODES = {
   testnet: {
